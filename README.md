@@ -6,4 +6,4 @@ OMERO python scripts and helper modules.
 Author: Graeme Ball
 License: GPL
 
-* **iomero.py**: OMERO Input/Output module wrapping CLI and Blitz gateway
+* **iomero.py**: OMERO helper I/O module wrapping CLI and Blitz gateway
