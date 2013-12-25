@@ -44,12 +44,15 @@ class Omg(object):
     def __init__(self, conn=None, user=None, passwd=None,
                  server=SERVER, port=PORT, skey=None):
         """
-        Init requires active Blitz gateway OR username plus password or sesskey
+        Requires active Blitz connection OR username plus password or sesskey
         """
         if conn is None and (user is None or (passwd is None and skey is None)):
             raise ValueError("Bad parameters," + self.__init__.__doc__)
         if conn is not None:
-            self.conn = conn
+            if conn.isConnected():
+                self.conn = conn
+            else:
+                raise ValueError("Cannot initialize Omg with a closed connection!")
         else:
             if passwd is not None:
                 self.conn = BlitzGateway(user, passwd, host=server, port=port)
@@ -57,13 +60,13 @@ class Omg(object):
             else:
                 self.conn = BlitzGateway(user, host=server, port=port)
                 self.conn.connect(skey)
-        self._server = self.conn.host
-        self._port = self.conn.port
-        self._user = self.conn.getUser().getName()
-        self._key = self.conn.getSession().getUuid().getValue()
         if self.conn.isConnected():
+            self._server = self.conn.host
+            self._port = self.conn.port
+            self._user = self.conn.getUser().getName()
+            self._key = self.conn.getSession().getUuid().getValue()
             print("Connected to {0} (port {1}) as {2}, session key={3}".format(
-                self._server, self._port, self._user, self._key))
+                  self._server, self._port, self._user, self._key))
         else:
             print("Failed to open connection :-(")
 
