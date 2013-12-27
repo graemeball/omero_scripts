@@ -25,7 +25,6 @@ import os
 import sys
 import argparse
 import numpy as np
-import collections
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
 from omero.gateway import BlitzGateway
@@ -55,7 +54,7 @@ class Omg(object):
             if conn.isConnected():
                 self.conn = conn
             else:
-                raise ValueError("Cannot initialize Omg with a closed connection!")
+                raise ValueError("Cannot initialize Omg with closed connection!")
         else:
             if passwd is not None:
                 self.conn = BlitzGateway(user, passwd, host=server, port=port)
@@ -127,6 +126,7 @@ class Omg(object):
             return [(group.getId(), group.getName()) for group in groups]
 
         def ls_projects(group_id):
+            # FIXME, only projects in this group
             projs = self.conn.listProjects(self.conn.getUserId())
             return [(proj.getId(), proj.getName()) for proj in projs]
 
@@ -169,6 +169,18 @@ class Im(object):
     """
     Image object based on a numpy ndarray, OME compatible.
 
+    Attributes
+    ----------
+    pix : numpy ndarray of pixel data
+    dim_order: "CTZYX" (fixed, all images are 5D)
+    dtype: numpy dtype for pixels
+    name: image name (string)
+    channels: list of channel info dicts
+    nc, nt, nz, ny, nx: dimension sizes
+    pixel_size: dict of pixel sizes and units
+    description: image description (string)
+    tags: dict of tag {'value': description} pairs
+
     """
 
     def __init__(self, pix=None, meta=None, im_id=None, conn=None):
@@ -191,8 +203,8 @@ class Im(object):
                 self.pix = pix
             else:
                 raise TypeError("pix must be " + str(np.ndarray))
-            for v, k in enumerate(meta):
-                setattr(self, k, v)
+            for val, key in enumerate(meta):
+                setattr(self, key, val)
         else:
             # using Blitz & im_id
             im = conn.getObject("Image", im_id)
@@ -227,19 +239,19 @@ class Im(object):
         tag_type = omero.model.TagAnnotationI
         tags = [ann for ann in im.listAnnotations() if ann.OMERO_TYPE == tag_type]
         self.tags = {tag.getValue(): tag.getDescription() for tag in tags}
-        
         # render, ROI
         # ancestry: dataset, project, owner
         # archived files
         # permissions (can, is)
         # set, save
-    
+
 
 class _FriendlyParser(argparse.ArgumentParser):
     """
     Display help message upon incorrect args -- no unfriendly error messages.
     """
     def error(self, message):
+        """override parser error handling"""
         print(self.print_help())
         print(message)
         sys.exit(2)
