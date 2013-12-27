@@ -171,15 +171,15 @@ class Im(object):
 
     Attributes
     ----------
-    pix : numpy ndarray of pixel data
-    dim_order: "CTZYX" (fixed, all images are 5D)
-    dtype: numpy dtype for pixels
-    name: image name (string)
-    channels: list of channel info dicts
-    nc, nt, nz, ny, nx: dimension sizes
-    pixel_size: dict of pixel sizes and units
-    description: image description (string)
-    tags: dict of tag {'value': description} pairs
+        pix : numpy ndarray of pixel data
+        dim_order: "CTZYX" (fixed, all images are 5D)
+        dtype: numpy dtype for pixels
+        name: image name (string)
+        channels: list of channel info dicts
+        nc, nt, nz, ny, nx: dimension sizes
+        pixel_size: dict of pixel sizes and units
+        description: image description (string)
+        tags: dict of tag {'value': description} pairs
 
     """
 
