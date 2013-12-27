@@ -24,10 +24,13 @@ PORT = 4064           # default
 import os
 import sys
 import argparse
+import numpy as np
+import collections
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
 from omero.gateway import BlitzGateway
 import omero.cli
+import omero.model
 
 
 class Omg(object):
@@ -161,6 +164,76 @@ class Omg(object):
         img_file.close()
         return img_path
 
+
+class Im(object):
+    """
+    Image object based on a numpy ndarray, OME compatible.
+
+    """
+
+    def __init__(self, pix=None, meta=None, im_id=None, conn=None):
+        """
+        Construct an Im object using either -
+
+            * a numpy ndarray (pix) and metadata dictionary, OR
+            * an active Blitz gateway and OMERO image id
+
+        Default is to construct a 256x256 image with empty metadata
+
+        """
+
+        if pix is None and im_id is None:
+            # default, construct empty 256x256 2D image (8-bit)
+            self.pix = np.zeros((256, 256), dtype=np.uint8)
+        elif im_id is None:
+            # using pix and meta
+            if isinstance(pix, np.ndarray):
+                self.pix = pix
+            else:
+                raise TypeError("pix must be " + str(np.ndarray))
+            for v, k in enumerate(meta):
+                setattr(self, k, v)
+        else:
+            # using Blitz & im_id
+            im = conn.getObject("Image", im_id)
+            nx, ny = im.getSizeX(), im.getSizeY()
+            nz, nt, nc = im.getSizeZ(), im.getSizeT(), im.getSizeC()
+            self.nc, self.nt, self.nz, self.ny, self.nx = nc, nt, nz, ny, nx
+            self.dim_order = "CTZYX"
+            planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
+            pix_gen = im.getPrimaryPixels().getPlanes(planes)
+            self.pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
+            self.dtype = self.pix.dtype
+            self._set_meta(im)
+
+    def _set_meta(self, im):
+        """
+        Set metadata attributes from OMERO Blitz gateway Image
+        """
+        self.name = im.getName()
+        #self.objective = im.getObjectiveSettings()
+        self.description = im.getDescription()
+
+        def _extract_ch_info(ch):
+            ch_info = {'label': ch.getLabel()}
+            ch_info['em_wave'] = ch.getEmissionWave()
+            ch_info['ex_wave'] = ch.getExcitationWave()
+            ch_info['color'] = ch.getColor().getRGB()
+            return ch_info
+
+        self.channels = [_extract_ch_info(ch) for ch in im.getChannels()]
+        self.pixel_size = {'x': im.getPixelSizeX(), 'y': im.getPixelSizeY(),
+                'z': im.getPixelSizeZ(), 'units': "unknown"}
+        tag_type = omero.model.TagAnnotationI
+        tags = [ann for ann in im.listAnnotations() if ann.OMERO_TYPE == tag_type]
+        self.tags = {tag.getValue(): tag.getDescription() for tag in tags}
+        
+        # render, ROI
+        # ancestry: dataset, project, owner
+        # archived files
+        # permissions (can, is)
+        # set, save
+    
 
 class _FriendlyParser(argparse.ArgumentParser):
     """
