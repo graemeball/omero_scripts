@@ -164,6 +164,12 @@ class Omg(object):
         img_file.close()
         return img_path
 
+    def im(self, im_id):
+        """
+        Return an Im object for the image id specified.
+        """
+        return Im(conn=self.conn, im_id=im_id)
+
 
 class Im(object):
     """
