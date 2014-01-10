@@ -215,7 +215,7 @@ class Im(object):
         dim_order: "CTZYX" (fixed, all images are 5D)
         dtype: numpy dtype for pixels
         name: image name (string)
-        channels: list of channel info dicts
+        ch_info: list of channel info dicts
         nc, nt, nz, ny, nx: dimension sizes
         pixel_size: dict of pixel sizes and units
         description: image description (string)
@@ -257,15 +257,14 @@ class Im(object):
             pix_gen = img.getPrimaryPixels().getPlanes(planes)
             self.pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
             self.dtype = self.pix.dtype
-            self._set_meta(img)
+            self._extract_meta(img)
         if not hasattr(self, "name"):
             self.name = "Unnamed"
 
-    def _set_meta(self, img):
+    def _extract_meta(self, img):
         """
-        Set metadata attributes from OMERO Blitz gateway Image
+        Extract metadata attributes from OMERO Blitz gateway Image
         """
-        #self.objective = img.getObjectiveSettings()
         self.description = img.getDescription()
 
         def _extract_ch_info(ch):
@@ -281,12 +280,17 @@ class Im(object):
         tag_type = omero.model.TagAnnotationI
         tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
         self.tags = {tag.getValue(): tag.getDescription() for tag in tags}
+        #self.objective = img.getObjectiveSettings()
+        # all omero ids, ancestry etc.: image, dataset, project, owner
+        # attachments & archived files
         # render, ROI
-        # ancestry: dataset, project, owner
-        # archived files
         # permissions (can, is)
         # set, save
-        # attachments
+
+    #def store_meta(self, omg, im_id):
+    #    """
+    #    Set OMERO Image metadata using self metadata.
+    #    """
 
     def __repr__(self):
         im_repr = 'Im object "{0}"\n'.format(self.name)
