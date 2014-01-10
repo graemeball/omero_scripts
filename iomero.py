@@ -25,6 +25,7 @@ import os
 import sys
 import argparse
 import numpy as np
+import pprint
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
 from omero.gateway import BlitzGateway
@@ -223,6 +224,8 @@ class Im(object):
             self.pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
             self.dtype = self.pix.dtype
             self._set_meta(im)
+        if not hasattr(self, "name"):
+            self.name = "Unnamed"
 
     def _set_meta(self, im):
         """
@@ -250,6 +253,11 @@ class Im(object):
         # archived files
         # permissions (can, is)
         # set, save
+
+    def __repr__(self):
+        im_repr = 'Im object "{0}"\n'.format(self.name)
+        im_repr += pprint.pformat(vars(self))
+        return im_repr
 
 
 class _FriendlyParser(argparse.ArgumentParser):
