@@ -49,6 +49,7 @@ class Omg(object):
         """
         Requires active Blitz connection OR username plus password or sesskey
         """
+        # FIXME, handle groups
         if conn is None and (user is None or (passwd is None and skey is None)):
             raise ValueError("Bad parameters," + self.__init__.__doc__)
         if conn is not None:
@@ -153,6 +154,7 @@ class Omg(object):
         Download the specified image as an OME-TIFF to current directory.
         Return : path to downloaded image
         """
+        # TODO, download attachments to a folder named according to im_id
         img = self.conn.getObject("Image", oid=im_id)
         path_and_base, ext = os.path.splitext(img.getName())
         base = os.path.basename(path_and_base)  # name in OMERO can has path
@@ -165,11 +167,42 @@ class Omg(object):
         img_file.close()
         return img_path
 
-    def im(self, im_id):
-        """
-        Return an Im object for the image id specified.
-        """
-        return Im(conn=self.conn, im_id=im_id)
+    # TODO, implement these methods
+    #def im(self, im_id):
+    #    """
+    #    Return an Im object for the image id specified.
+    #    """
+    #    return Im(conn=self.conn, im_id=im_id)
+
+    #def imsave(self, im, dataset=None):
+    #    """
+    #    Create a new OMERO Image using an Im object.
+    #    """
+
+    #def dget(self, dataset=None):
+    #    """
+    #    Download an entire OMERO Dataset.
+    #    """
+
+    #def pget(self, project=None):
+    #    """
+    #    Download an entire OMERO Project.
+    #    """
+
+    #def mkd(self, dataset_name):
+    #    """
+    #    Make a new OMERO dataset.
+    #    """
+
+    #def mkp(self, project_name):
+    #    """
+    #    Make a new OMERO project.
+    #    """
+
+    #def dput(self, path=None):
+    #    """
+    #    Create new OMERO Dataset from contents of a folder (default cwd).
+    #    """
 
 
 class Im(object):
@@ -253,6 +286,7 @@ class Im(object):
         # archived files
         # permissions (can, is)
         # set, save
+        # attachments
 
     def __repr__(self):
         im_repr = 'Im object "{0}"\n'.format(self.name)
