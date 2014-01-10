@@ -156,10 +156,8 @@ class Omg(object):
         """
         # TODO, download attachments to a folder named according to im_id
         img = self.conn.getObject("Image", oid=im_id)
-        path_and_base, ext = os.path.splitext(img.getName())
-        base = os.path.basename(path_and_base)  # name in OMERO can has path
-        img_name = "{0}_{1}.ome.tiff".format(base, str(im_id))
-        img_path = os.path.join(os.getcwd(), img_name)
+        img_name = _unique_name(img.getName(), im_id)
+        img_path = os.path.join(os.getcwd(), img_name + ".ome.tiff")
         img_file = open(str(img_path), "wb")
         fsize, blockgen = img.exportOmeTiff(bufsize=65536)
         for block in blockgen:
@@ -167,12 +165,14 @@ class Omg(object):
         img_file.close()
         return img_path
 
-    # TODO, implement these methods
-    #def im(self, im_id):
-    #    """
-    #    Return an Im object for the image id specified.
-    #    """
-    #    return Im(conn=self.conn, im_id=im_id)
+
+    def im(self, im_id):
+        """
+        Return an Im object for the image id specified.
+        """
+        return Im(conn=self.conn, im_id=im_id)
+
+    # TODO, implement these methods!
 
     #def imsave(self, im, dataset=None):
     #    """
@@ -247,26 +247,26 @@ class Im(object):
                 setattr(self, key, val)
         else:
             # using Blitz & im_id
-            im = conn.getObject("Image", im_id)
-            nx, ny = im.getSizeX(), im.getSizeY()
-            nz, nt, nc = im.getSizeZ(), im.getSizeT(), im.getSizeC()
+            img = conn.getObject("Image", im_id)
+            self.name = _unique_name(img.getName(), im_id)
+            nx, ny = img.getSizeX(), img.getSizeY()
+            nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
             self.nc, self.nt, self.nz, self.ny, self.nx = nc, nt, nz, ny, nx
             self.dim_order = "CTZYX"
             planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
-            pix_gen = im.getPrimaryPixels().getPlanes(planes)
+            pix_gen = img.getPrimaryPixels().getPlanes(planes)
             self.pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
             self.dtype = self.pix.dtype
-            self._set_meta(im)
+            self._set_meta(img)
         if not hasattr(self, "name"):
             self.name = "Unnamed"
 
-    def _set_meta(self, im):
+    def _set_meta(self, img):
         """
         Set metadata attributes from OMERO Blitz gateway Image
         """
-        self.name = im.getName()
-        #self.objective = im.getObjectiveSettings()
-        self.description = im.getDescription()
+        #self.objective = img.getObjectiveSettings()
+        self.description = img.getDescription()
 
         def _extract_ch_info(ch):
             ch_info = {'label': ch.getLabel()}
@@ -275,11 +275,11 @@ class Im(object):
             ch_info['color'] = ch.getColor().getRGB()
             return ch_info
 
-        self.channels = [_extract_ch_info(ch) for ch in im.getChannels()]
-        self.pixel_size = {'x': im.getPixelSizeX(), 'y': im.getPixelSizeY(),
-                'z': im.getPixelSizeZ(), 'units': "unknown"}
+        self.channels = [_extract_ch_info(ch) for ch in img.getChannels()]
+        self.pixel_size = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
+                'z': img.getPixelSizeZ(), 'units': "unknown"}
         tag_type = omero.model.TagAnnotationI
-        tags = [ann for ann in im.listAnnotations() if ann.OMERO_TYPE == tag_type]
+        tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
         self.tags = {tag.getValue(): tag.getDescription() for tag in tags}
         # render, ROI
         # ancestry: dataset, project, owner
@@ -294,6 +294,17 @@ class Im(object):
         return im_repr
 
 
+# shared utility functions
+def _unique_name(img_name, im_id):
+    """
+    Make a unique name by combining a file basename and OMERO Image id.
+    """
+    path_and_base, ext = os.path.splitext(img_name)
+    base = os.path.basename(path_and_base)  # name in OMERO can has path
+    return "{0}_{1}".format(base, str(im_id))
+
+
+# custom ArgumentParser
 class _FriendlyParser(argparse.ArgumentParser):
     """
     Display help message upon incorrect args -- no unfriendly error messages.
