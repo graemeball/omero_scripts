@@ -27,10 +27,10 @@ class Im(object):
         name: image name (string)
         pix : numpy ndarray of pixel data
         dim_order: "CTZYX" (fixed, all images are 5D)
-        dtype: numpy dtype for pixels
         nc, nt, nz, ny, nx: dimension sizes
-        ch_info: list of channel info dicts
+        dtype: numpy dtype for pixels
         pixel_size: dict of pixel sizes and units
+        ch_info: list of channel info dicts
         description: image description (string)
         tags: dict of tag {'value': description} pairs
         meta_ext: dict of extended metadata {'label': value} pairs
@@ -43,16 +43,19 @@ class Im(object):
         Default is to construct array of zeros of given size, or 1x1x1x256x256.
 
         """
-        if meta is None:
-            ch_info = [{'label': None, 'em_wave': None, 'ex_wave': None,
-                        'color': None}]
-            pix_sz = {'x': 1, 'y': 1, 'z': 1, 'units': None}
-            meta = {'name': "Unnamed", 'dim_order': "CTZYX", 'dtype': np.uint8,
-                    'nc': 1, 'nt': 1, 'nz': 1, 'ny': 256, 'nx': 256,
-                    'ch_info': ch_info, 'pixel_size': pix_sz,
-                    'description': "", 'tags': {}, 'meta_ext': {}}
-        for key in meta:
-            setattr(self, key, meta[key])
+        ch_info = [{'label': None, 'em_wave': None, 'ex_wave': None,
+                    'color': None}]
+        pix_sz = {'x': 1, 'y': 1, 'z': 1, 'units': None}
+        default_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
+                        'nc': 1, 'nt': 1, 'nz': 1, 'ny': 256, 'nx': 256,
+                        'dtype': np.uint8, 'pixel_size': pix_sz,
+                        'ch_info': ch_info, 'description': "",
+                        'tags': {}, 'meta_ext': {}}
+        for key in default_meta:
+            setattr(self, key, default_meta[key])
+        if meta is not None:
+            for key in meta:
+                setattr(self, key, default_meta[key])
         if pix is None:
             # default, construct empty 8-bit image according to dimensions
             self.pix = np.zeros((self.nc, self.nt, self.nz, self.ny, self.nx),
@@ -60,6 +63,7 @@ class Im(object):
         else:
             self.pix = pix
             self.nc, self.nt, self.nz, self.ny, self.nx = pix.shape
+            self.dtype = pix.dtype
 
     def __repr__(self):
         im_repr = 'Im object "{0}"\n'.format(self.name)
