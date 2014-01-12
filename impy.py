@@ -27,8 +27,8 @@ class Im(object):
         name: image name (string)
         pix : numpy ndarray of pixel data
         dim_order: "CTZYX" (fixed, all images are 5D)
-        nc, nt, nz, ny, nx: dimension sizes
         dtype: numpy dtype for pixels
+        nc, nt, nz, ny, nx: dimension sizes
         ch_info: list of channel info dicts
         pixel_size: dict of pixel sizes and units
         description: image description (string)
@@ -46,12 +46,13 @@ class Im(object):
         if meta is None:
             ch_info = [{'label': None, 'em_wave': None, 'ex_wave': None,
                         'color': None}]
-            meta = {'name': "Unnamed", 'dim_order': "CTZYX",
+            pix_sz = {'x': 1, 'y': 1, 'z': 1, 'units': None}
+            meta = {'name': "Unnamed", 'dim_order': "CTZYX", 'dtype': np.uint8,
                     'nc': 1, 'nt': 1, 'nz': 1, 'ny': 256, 'nx': 256,
-                    'dtype': np.uint8, 'ch_info': ch_info, 'pixel_size': 1,
+                    'ch_info': ch_info, 'pixel_size': pix_sz,
                     'description': "", 'tags': {}, 'meta_ext': {}}
-        for val, key in enumerate(meta):
-            setattr(self, key, val)
+        for key in meta:
+            setattr(self, key, meta[key])
         if pix is None:
             # default, construct empty 8-bit image according to dimensions
             self.pix = np.zeros((self.nc, self.nt, self.nz, self.ny, self.nx),
