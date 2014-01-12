@@ -25,12 +25,12 @@ import os
 import sys
 import argparse
 import numpy as np
-import pprint
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
 from omero.gateway import BlitzGateway
 import omero.cli
 import omero.model
+import impy
 
 
 class Omg(object):
@@ -156,7 +156,7 @@ class Omg(object):
         """
         # TODO, download attachments to a folder named according to im_id
         img = self.conn.getObject("Image", oid=im_id)
-        img_name = _unique_name(img.getName(), im_id)
+        img_name = self._unique_name(img.getName(), im_id)
         img_path = os.path.join(os.getcwd(), img_name + ".ome.tiff")
         img_file = open(str(img_path), "wb")
         fsize, blockgen = img.exportOmeTiff(bufsize=65536)
@@ -165,19 +165,70 @@ class Omg(object):
         img_file.close()
         return img_path
 
+    def im(self, im_id):
+        """
+        Return an impy.Im object for the image id specified.
+        """
+        img = self.conn.getObject("Image", im_id)
+        self.name = self._unique_name(img.getName(), im_id)
+        # build pixel np.ndarray
+        nx, ny = img.getSizeX(), img.getSizeY()
+        nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
+        self.nc, self.nt, self.nz, self.ny, self.nx = nc, nt, nz, ny, nx
+        self.dim_order = "CTZYX"
+        planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
+        pix_gen = img.getPrimaryPixels().getPlanes(planes)
+        pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
+        # initialize impy.Im using pix and extracted metadata
+        meta = self._extract_meta(img)
+        return impy.Im(pix=pix, meta=meta)
+    
+    def _unique_name(self, img_name, im_id):
+        """
+        Make a unique name by combining a file basename and OMERO Image id.
+        """
+        path_and_base, ext = os.path.splitext(img_name)
+        base = os.path.basename(path_and_base)  # name in OMERO can has path
+        return "{0}_{1}".format(base, str(im_id))
 
-    # TODO: FIXME
-    #def im(self, im_id):
-    #    """
-    #    Return an Im object for the image id specified.
-    #    """
-    #    return Im(conn=self.conn, im_id=im_id)
+    def _extract_meta(self, img):
+        """
+        Extract metadata attributes from OMERO Blitz gateway Image
+        """
+        meta = {}
+        meta['description'] = img.getDescription()
+    
+        def _extract_ch_info(ch):
+            ch_info = {'label': ch.getLabel()}
+            ch_info['em_wave'] = ch.getEmissionWave()
+            ch_info['ex_wave'] = ch.getExcitationWave()
+            ch_info['color'] = ch.getColor().getRGB()
+            return ch_info
+    
+        meta['channels'] = [_extract_ch_info(ch) for ch in img.getChannels()]
+        meta['pixel_size'] = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
+                              'z': img.getPixelSizeZ(), 'units': "unknown"}
+        tag_type = omero.model.TagAnnotationI
+        tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
+        meta['tags'] = {tag.getValue(): tag.getDescription() for tag in tags}
+        #self.objective = img.getObjectiveSettings()
+        # all omero ids, ancestry etc.: image, dataset, project, owner
+        # attachments & archived files
+        # render, ROI
+        # permissions (can, is)
+        # set, save
+    
 
     # TODO, implement these methods!
 
     #def imsave(self, im, dataset=None):
     #    """
     #    Create a new OMERO Image using an Im object.
+    #    """
+
+    #def store_meta(self, omg, im_id):
+    #    """
+    #    Set OMERO Image metadata using self metadata.
     #    """
 
     #def dget(self, dataset=None):
@@ -204,113 +255,6 @@ class Omg(object):
     #    """
     #    Create new OMERO Dataset from contents of a folder (default cwd).
     #    """
-
-
-#class Im(object):
-#    """
-#    Image object based on a numpy ndarray, OME compatible.
-#
-#    Attributes
-#    ----------
-#        name: image name (string)
-#        pix : numpy ndarray of pixel data
-#        dim_order: "CTZYX" (fixed, all images are 5D)
-#        dtype: numpy dtype for pixels
-#        ch_info: list of channel info dicts
-#        nc, nt, nz, ny, nx: dimension sizes
-#        pixel_size: dict of pixel sizes and units
-#        description: image description (string)
-#        tags: dict of tag {'value': description} pairs
-#
-#    """
-#
-#    # TODO, split Im off into separate module, construct in iomero using Blitz
-#
-#    def __init__(self, pix=None, meta=None, im_id=None, conn=None):
-#        """
-#        Construct an Im object using either -
-#
-#            * a numpy ndarray (pix) and metadata dictionary, OR
-#            * an active Blitz gateway and OMERO image id
-#
-#        Default is to construct a 256x256 image with empty metadata
-#
-#        """
-#        core_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
-#                     'dtype': np.uint8, 'ch_info': [], 'pixel_size': None,
-#                     'description': "", 'tags': {}}
-#        if pix is None and im_id is None:
-#            # default, construct empty 256x256 2D image (8-bit)
-#            self.pix = np.zeros((256, 256), dtype=np.uint8)
-#        elif im_id is None:
-#            # using pix and meta
-#            if isinstance(pix, np.ndarray):
-#                self.pix = pix
-#            else:
-#                raise TypeError("pix must be " + str(np.ndarray))
-#            for val, key in enumerate(meta):
-#                setattr(self, key, val)
-#        else:
-#            # using Blitz & im_id
-#            img = conn.getObject("Image", im_id)
-#            self.name = _unique_name(img.getName(), im_id)
-#            nx, ny = img.getSizeX(), img.getSizeY()
-#            nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
-#            self.nc, self.nt, self.nz, self.ny, self.nx = nc, nt, nz, ny, nx
-#            self.dim_order = "CTZYX"
-#            planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
-#            pix_gen = img.getPrimaryPixels().getPlanes(planes)
-#            self.pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
-#            self.dtype = self.pix.dtype
-#            self._extract_meta(img)
-#        if not hasattr(self, "name"):
-#            self.name = "Unnamed"
-#
-#    def _extract_meta(self, img):
-#        """
-#        Extract metadata attributes from OMERO Blitz gateway Image
-#        """
-#        self.description = img.getDescription()
-#
-#        def _extract_ch_info(ch):
-#            ch_info = {'label': ch.getLabel()}
-#            ch_info['em_wave'] = ch.getEmissionWave()
-#            ch_info['ex_wave'] = ch.getExcitationWave()
-#            ch_info['color'] = ch.getColor().getRGB()
-#            return ch_info
-#
-#        self.channels = [_extract_ch_info(ch) for ch in img.getChannels()]
-#        self.pixel_size = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
-#                'z': img.getPixelSizeZ(), 'units': "unknown"}
-#        tag_type = omero.model.TagAnnotationI
-#        tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
-#        self.tags = {tag.getValue(): tag.getDescription() for tag in tags}
-#        #self.objective = img.getObjectiveSettings()
-#        # all omero ids, ancestry etc.: image, dataset, project, owner
-#        # attachments & archived files
-#        # render, ROI
-#        # permissions (can, is)
-#        # set, save
-#
-#    #def store_meta(self, omg, im_id):
-#    #    """
-#    #    Set OMERO Image metadata using self metadata.
-#    #    """
-#
-#    def __repr__(self):
-#        im_repr = 'Im object "{0}"\n'.format(self.name)
-#        im_repr += pprint.pformat(vars(self))
-#        return im_repr
-#
-#
-## shared utility functions
-#def _unique_name(img_name, im_id):
-#    """
-#    Make a unique name by combining a file basename and OMERO Image id.
-#    """
-#    path_and_base, ext = os.path.splitext(img_name)
-#    base = os.path.basename(path_and_base)  # name in OMERO can has path
-#    return "{0}_{1}".format(base, str(im_id))
 
 
 # custom ArgumentParser

@@ -61,7 +61,10 @@ class Im(object):
             self.pix = np.zeros((self.nc, self.nt, self.nz, self.ny, self.nx),
                                 dtype=np.uint8)
         else:
-            self.pix = pix
+            if isinstance(pix, np.ndarray):
+                self.pix = pix
+            else:
+                raise TypeError("pix must be " + str(np.ndarray))
             self.nc, self.nt, self.nz, self.ny, self.nx = pix.shape
             self.dtype = pix.dtype
 
