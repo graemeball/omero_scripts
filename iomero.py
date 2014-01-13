@@ -210,7 +210,7 @@ class Omg(object):
     
         meta['channels'] = [_extract_ch_info(ch) for ch in img.getChannels()]
         meta['pixel_size'] = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
-                              'z': img.getPixelSizeZ(), 'units': "unknown"}
+                              'z': img.getPixelSizeZ(), 'units': "um"}
         tag_type = omero.model.TagAnnotationI
         tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
         meta['tags'] = {tag.getValue() + " (" + str(tag.getId()) + ")": \
