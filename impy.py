@@ -49,13 +49,13 @@ class Im(object):
         default_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
                         'nc': 1, 'nt': 1, 'nz': 1, 'ny': 256, 'nx': 256,
                         'dtype': np.uint8, 'pixel_size': pix_sz,
-                        'ch_info': ch_info, 'description': "",
+                        'channels': ch_info, 'description': "",
                         'tags': {}, 'meta_ext': {}}
         for key in default_meta:
             setattr(self, key, default_meta[key])
         if meta is not None:
             for key in meta:
-                setattr(self, key, default_meta[key])
+                setattr(self, key, meta[key])
         if pix is None:
             # default, construct empty 8-bit image according to dimensions
             self.pix = np.zeros((self.nc, self.nt, self.nz, self.ny, self.nx),

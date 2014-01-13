@@ -170,7 +170,6 @@ class Omg(object):
         Return an impy.Im object for the image id specified.
         """
         img = self.conn.getObject("Image", im_id)
-        self.name = self._unique_name(img.getName(), im_id)
         # build pixel np.ndarray
         nx, ny = img.getSizeX(), img.getSizeY()
         nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
@@ -180,7 +179,7 @@ class Omg(object):
         pix_gen = img.getPrimaryPixels().getPlanes(planes)
         pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
         # initialize impy.Im using pix and extracted metadata
-        meta = self._extract_meta(img)
+        meta = self._extract_meta(img, im_id)
         return impy.Im(pix=pix, meta=meta)
     
     def _unique_name(self, img_name, im_id):
@@ -191,12 +190,16 @@ class Omg(object):
         base = os.path.basename(path_and_base)  # name in OMERO can has path
         return "{0}_{1}".format(base, str(im_id))
 
-    def _extract_meta(self, img):
+    def _extract_meta(self, img, im_id):
         """
         Extract metadata attributes from OMERO Blitz gateway Image
         """
         meta = {}
+        meta['name'] = self._unique_name(img.getName(), im_id)
         meta['description'] = img.getDescription()
+        meta['omero_id'] = self.conn.getUser().getName() + " (" + \
+                           str(self.conn.getUser().getId()) + ") @" + \
+                           self.conn.host
     
         def _extract_ch_info(ch):
             ch_info = {'label': ch.getLabel()}
@@ -210,13 +213,16 @@ class Omg(object):
                               'z': img.getPixelSizeZ(), 'units': "unknown"}
         tag_type = omero.model.TagAnnotationI
         tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
-        meta['tags'] = {tag.getValue(): tag.getDescription() for tag in tags}
-        #self.objective = img.getObjectiveSettings()
-        # all omero ids, ancestry etc.: image, dataset, project, owner
-        # attachments & archived files
-        # render, ROI
-        # permissions (can, is)
-        # set, save
+        meta['tags'] = {tag.getValue() + " (" + str(tag.getId()) + ")": \
+                        tag.getDescription() for tag in tags}
+        fa_type = omero.model.FileAnnotationI
+        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
+        meta['attachments'] = [att.getFileName() + " (" + str(att.getId()) + ")" for att in attachments]
+        # TODO:- 
+        #   objective: Image.loadOriginalMetadata()[1][find 'Lens ID Number'][1],
+        #   ROIs:,
+        #   display settings:
+        return meta
     
 
     # TODO, implement these methods!
@@ -226,7 +232,7 @@ class Omg(object):
     #    Create a new OMERO Image using an Im object.
     #    """
 
-    #def store_meta(self, omg, im_id):
+    #def _store_meta(self, omg, im_id):
     #    """
     #    Set OMERO Image metadata using self metadata.
     #    """
