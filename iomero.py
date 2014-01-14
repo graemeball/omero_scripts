@@ -182,8 +182,6 @@ class Omg(object):
         # build pixel np.ndarray
         nx, ny = img.getSizeX(), img.getSizeY()
         nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
-        self.nc, self.nt, self.nz, self.ny, self.nx = nc, nt, nz, ny, nx
-        self.dim_order = "CTZYX"
         planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
         pix_gen = img.getPrimaryPixels().getPlanes(planes)
         pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))

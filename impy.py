@@ -27,8 +27,8 @@ class Im(object):
         name: image name (string)
         pix : numpy ndarray of pixel data
         dim_order: "CTZYX" (fixed, all images are 5D)
-        nc, nt, nz, ny, nx: dimension sizes
         dtype: numpy dtype for pixels
+        shape: pixel array shape tuple, (nc, nt, nz, ny, nx)
         pixel_size: dict of pixel sizes and units
         ch_info: list of channel info dicts
         description: image description (string)
@@ -43,14 +43,12 @@ class Im(object):
         Default is to construct array of zeros of given size, or 1x1x1x256x256.
 
         """
-        ch_info = [{'label': None, 'em_wave': None, 'ex_wave': None,
-                    'color': None}]
-        pix_sz = {'x': 1, 'y': 1, 'z': 1, 'units': None}
+        channels = [{'label': None, 'em_wave': None, 'ex_wave': None, 'color': None}]
+        pixel_size = {'x': 1, 'y': 1, 'z': 1, 'units': None}
         default_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
-                        'nc': 1, 'nt': 1, 'nz': 1, 'ny': 256, 'nx': 256,
-                        'dtype': np.uint8, 'pixel_size': pix_sz,
-                        'channels': ch_info, 'description': "",
-                        'tags': {}, 'meta_ext': {}}
+                        'dtype': np.uint8, 'shape': (1, 1, 1, 256, 256),
+                        'pixel_size': pixel_size, 'channels': channels,
+                        'description': "", 'tags': {}, 'meta_ext': {}}
         for key in default_meta:
             setattr(self, key, default_meta[key])
         if meta is not None:
@@ -65,7 +63,7 @@ class Im(object):
                 self.pix = pix
             else:
                 raise TypeError("pix must be " + str(np.ndarray))
-            self.nc, self.nt, self.nz, self.ny, self.nx = pix.shape
+            self.shape = pix.shape
             self.dtype = pix.dtype
 
     def __repr__(self):
