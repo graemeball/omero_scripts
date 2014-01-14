@@ -49,7 +49,6 @@ class Omg(object):
         """
         Requires active Blitz connection OR username plus password or sesskey
         """
-        # FIXME, handle groups
         if conn is None and (user is None or (passwd is None and skey is None)):
             raise ValueError("Bad parameters," + self.__init__.__doc__)
         if conn is not None:
@@ -128,7 +127,6 @@ class Omg(object):
             return [(group.getId(), group.getName()) for group in groups]
 
         def ls_projects(group_id):
-            # FIXME, only projects in this group
             projs = self.conn.listProjects(self.conn.getUserId())
             return [(proj.getId(), proj.getName()) for proj in projs]
 
@@ -140,14 +138,25 @@ class Omg(object):
             imgs = self.conn.getObject("Dataset", dset_id).listChildren()
             return [(img.getId(), img.getName()) for img in imgs]
 
+        # show groups, then projects/datasets/images for current group
+        print("Groups for {0}:-".format(self.conn.getUser().getName()))
         for gid, gname in ls_groups():
-            print("Group: {0} ({1})".format(gname, str(gid)))
-            for pid, pname in ls_projects(gid):
-                print("  Project: {0} ({1})".format(pname, str(pid)))
-                for did, dname in ls_datasets(pid):
-                    print("    Dataset: {0} ({1})".format(dname, str(did)))
-                    for iid, iname in ls_images(did):
-                        print("      Image: {0} ({1})".format(iname, str(iid)))
+            print("  {0} ({1})".format(gname, str(gid)))
+        curr_grp = self.conn.getGroupFromContext()
+        gid, gname = curr_grp.getId(), curr_grp.getName()
+        print("\nData for current group, {0} ({1}):-".format(gname, gid))
+        for pid, pname in ls_projects(gid):
+            print("  Project: {0} ({1})".format(pname, str(pid)))
+            for did, dname in ls_datasets(pid):
+                print("    Dataset: {0} ({1})".format(dname, str(did)))
+                for iid, iname in ls_images(did):
+                    print("      Image: {0} ({1})".format(iname, str(iid)))
+
+    def chgrp(self, group_id):
+        """
+        Change group for this session to the group_id given.
+        """
+        self.conn.setGroupForSession(group_id)
 
     def get(self, im_id):
         """
