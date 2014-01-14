@@ -206,7 +206,7 @@ class Omg(object):
         # initialize impy.Im using pix and extracted metadata
         meta = self._extract_meta(img, im_id)
         return impy.Im(pix=pix, meta=meta)
-    
+
     def _unique_name(self, img_name, im_id):
         """
         Make a unique name by combining a file basename and OMERO Image id.
@@ -225,14 +225,14 @@ class Omg(object):
         meta['omero_id'] = self.conn.getUser().getName() + " (" + \
                            str(self.conn.getUser().getId()) + ") @" + \
                            self.conn.host
-    
+
         def _extract_ch_info(ch):
             ch_info = {'label': ch.getLabel()}
             ch_info['em_wave'] = ch.getEmissionWave()
             ch_info['ex_wave'] = ch.getExcitationWave()
             ch_info['color'] = ch.getColor().getRGB()
             return ch_info
-    
+
         meta['channels'] = [_extract_ch_info(ch) for ch in img.getChannels()]
         meta['pixel_size'] = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
                               'z': img.getPixelSizeZ(), 'units': "um"}
@@ -243,7 +243,7 @@ class Omg(object):
         fa_type = omero.model.FileAnnotationI
         attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
         meta['attachments'] = [att.getFileName() + " (" + str(att.getId()) + ")" for att in attachments]
-        # TODO:- 
+        # TODO:-
         #   objective: Image.loadOriginalMetadata()[1][find 'Lens ID Number'][1],
         #   ROIs:,
         #   display settings:
@@ -281,14 +281,14 @@ class Omg(object):
 
     def _save_and_return_id(self, obj):
         """Save new omero object and return id assgined to it"""
-        # see: OmeroWebGateway.saveAndReturnId 
+        # see: OmeroWebGateway.saveAndReturnId
         # in: lib/python/omeroweb/webclient/webclient_gateway.py
         us = self.conn.getUpdateService()
         res = us.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
         res.unload()
         return res.id.val
 
-    def mkpj(self, project_name, description=None):
+    def mkp(self, project_name, description=None):
         """
         Make new OMERO project in current group, returning the new project Id.
         """
@@ -299,7 +299,7 @@ class Omg(object):
             pj.description = omero.rtypes.rstring(str(description))
         return self._save_and_return_id(pj)
 
-    def mkds(self, dataset_name, project_id=None, description=None):
+    def mkd(self, dataset_name, project_id=None, description=None):
         """
         Make new OMERO dataset, returning the new dataset Id.
         """
