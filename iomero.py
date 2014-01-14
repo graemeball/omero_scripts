@@ -118,38 +118,41 @@ class Omg(object):
             img.linkAnnotation(fann)
         img.save()
 
+    def _ls_groups(self):
+        """list groups (id, name) this session is a member of"""
+        groups = self.conn.getGroupsMemberOf()
+        return [(group.getId(), group.getName()) for group in groups]
+
+    def _ls_projects(self):
+        """list projects (id, name) in the current session group"""
+        projs = self.conn.listProjects(self.conn.getUserId())
+        return [(proj.getId(), proj.getName()) for proj in projs]
+
+    def _ls_datasets(self, proj_id):
+        """list datasets (id, name) within the project id given"""
+        dsets = self.conn.getObject("Project", proj_id).listChildren()
+        return [(dset.getId(), dset.getName()) for dset in dsets]
+
+    def _ls_images(self, dset_id):
+        """list images (id, name) within the dataset id given"""
+        imgs = self.conn.getObject("Dataset", dset_id).listChildren()
+        return [(img.getId(), img.getName()) for img in imgs]
+
     def ls(self):
         """
-        Print a listing of all groups, projects, datasets, images.
+        Print groups, then projects/datasets/images for current group
         """
-        def ls_groups():
-            groups = self.conn.getGroupsMemberOf()
-            return [(group.getId(), group.getName()) for group in groups]
-
-        def ls_projects(group_id):
-            projs = self.conn.listProjects(self.conn.getUserId())
-            return [(proj.getId(), proj.getName()) for proj in projs]
-
-        def ls_datasets(proj_id):
-            dsets = self.conn.getObject("Project", proj_id).listChildren()
-            return [(dset.getId(), dset.getName()) for dset in dsets]
-
-        def ls_images(dset_id):
-            imgs = self.conn.getObject("Dataset", dset_id).listChildren()
-            return [(img.getId(), img.getName()) for img in imgs]
-
-        # show groups, then projects/datasets/images for current group
         print("Groups for {0}:-".format(self.conn.getUser().getName()))
-        for gid, gname in ls_groups():
+        for gid, gname in self._ls_groups():
             print("  {0} ({1})".format(gname, str(gid)))
         curr_grp = self.conn.getGroupFromContext()
         gid, gname = curr_grp.getId(), curr_grp.getName()
         print("\nData for current group, {0} ({1}):-".format(gname, gid))
-        for pid, pname in ls_projects(gid):
+        for pid, pname in self._ls_projects():
             print("  Project: {0} ({1})".format(pname, str(pid)))
-            for did, dname in ls_datasets(pid):
+            for did, dname in self._ls_datasets(pid):
                 print("    Dataset: {0} ({1})".format(dname, str(did)))
-                for iid, iname in ls_images(did):
+                for iid, iname in self._ls_images(did):
                     print("      Image: {0} ({1})".format(iname, str(iid)))
 
     def chgrp(self, group_id):
@@ -244,29 +247,39 @@ class Omg(object):
         #   display settings:
         return meta
 
-    # TODO, implement these methods!
-    
-    #def dget(self, dataset=None):
-    #    """
-    #    Download an entire OMERO Dataset.
-    #    """
+    def dget(self, dataset_id):
+        """
+        Download an entire OMERO Dataset to the current directory.
+        """
+        downloads = []
+        wdir = os.getcwd()
+        dset_name = self.conn.getObject("Dataset", dataset_id).getName()
+        dset_path = os.path.join(wdir, dset_name + "_D" + str(dataset_id))
+        os.mkdir(dset_path)
+        os.chdir(dset_path)
+        for img_id, img_name in self._ls_images(dataset_id):
+            downloads.append(self.get(img_id))
+        os.chdir(wdir)
+        return downloads
 
-    #def pget(self, project=None):
-    #    """
-    #    Download an entire OMERO Project.
-    #    """
+    def pget(self, project_id):
+        """
+        Download an entire OMERO Project to the current directory.
+        """
+        downloads = []
+        wdir = os.getcwd()
+        proj_name = self.conn.getObject("Project", project_id).getName()
+        proj_path = os.path.join(wdir, proj_name + "_P" + str(project_id))
+        os.mkdir(proj_path)
+        os.chdir(proj_path)
+        for dset_id, dset_name in self._ls_datasets(project_id):
+            downloads.extend(self.dget(dset_id))
+        os.chdir(wdir)
+        return downloads
+
+    # TODO, implement these methods!
 
     #   see: lib/python/omeroweb/webclient/controller/container.py
-
-    #def imsave(self, im, dataset=None):
-    #    """
-    #    Create a new OMERO Image using an Im object.
-    #    """
-
-    #def _store_meta(self, omg, im_id):
-    #    """
-    #    Set OMERO Image metadata using self metadata.
-    #    """
 
     #def mkd(self, dataset_name):
     #    """
@@ -276,6 +289,16 @@ class Omg(object):
     #def mkp(self, project_name):
     #    """
     #    Make a new OMERO project.
+    #    """
+
+    #def imsave(self, im, dataset=None):
+    #    """
+    #    Create a new OMERO Image using an Im object.
+    #    """
+
+    #def _store_meta(self, omg, im_id):
+    #    """
+    #    Set OMERO Image metadata using self metadata.
     #    """
 
     #def dput(self, path=None):
