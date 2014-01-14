@@ -30,6 +30,7 @@ sys.path.append(ICE_PATH)
 from omero.gateway import BlitzGateway
 import omero.cli
 import omero.model
+import omero.rtypes
 import impy
 
 
@@ -154,6 +155,7 @@ class Omg(object):
                 print("    Dataset: {0} ({1})".format(dname, str(did)))
                 for iid, iname in self._ls_images(did):
                     print("      Image: {0} ({1})".format(iname, str(iid)))
+        # TODO, list orphaned Datasets and Images
 
     def chgrp(self, group_id):
         """
@@ -277,21 +279,51 @@ class Omg(object):
         os.chdir(wdir)
         return downloads
 
+    def _save_and_return_id(self, obj):
+        """Save new omero object and return id assgined to it"""
+        # see: OmeroWebGateway.saveAndReturnId 
+        # in: lib/python/omeroweb/webclient/webclient_gateway.py
+        us = self.conn.getUpdateService()
+        res = us.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
+        res.unload()
+        return res.id.val
+
+    def mkp(self, project_name, description=None):
+        """
+        Make new OMERO project in current group, returning the new project Id.
+        """
+        # see: omero/lib/python/omeroweb/webclient/controller/container.py
+        pj = omero.model.ProjectI()
+        pj.name = omero.rtypes.rstring(str(project_name))
+        if description is not None and description != "":
+            pj.description = omero.rtypes.rstring(str(description))
+        return self._save_and_return_id(pj)
+
+    def mkd(self, dataset_name, project_id=None, description=None):
+        """
+        Make new OMERO dataset, returning the new dataset Id.
+        """
+        # see: omero/lib/python/omeroweb/webclient/controller/container.py
+        ds = omero.model.DatasetI()
+        ds.name = omero.rtypes.rstring(str(dataset_name))
+        if description is not None and description != "":
+            ds.description = omero.rtypes.rstring(str(description))
+        if project_id is not None:
+            l_ds = omero.model.ProjectDatasetLinkI()
+            pj = self.conn.getObject("Project", project_id)
+            l_ds.setParent(pj._obj)
+            l_ds.setChild(ds)
+            ds.addProjectDatasetLink(l_ds)
+        return self._save_and_return_id(ds)
+
     # TODO, implement these methods!
 
-    #   see: lib/python/omeroweb/webclient/controller/container.py
-
-    #def mkd(self, dataset_name):
+    #def dput(self, path=None):
     #    """
-    #    Make a new OMERO dataset.
+    #    Create new OMERO Dataset from contents of a folder (default cwd).
     #    """
 
-    #def mkp(self, project_name):
-    #    """
-    #    Make a new OMERO project.
-    #    """
-
-    #def imsave(self, im, dataset=None):
+    #def imput(self, im, dataset=None):
     #    """
     #    Create a new OMERO Image using an Im object.
     #    """
@@ -299,11 +331,6 @@ class Omg(object):
     #def _store_meta(self, omg, im_id):
     #    """
     #    Set OMERO Image metadata using self metadata.
-    #    """
-
-    #def dput(self, path=None):
-    #    """
-    #    Create new OMERO Dataset from contents of a folder (default cwd).
     #    """
 
 
