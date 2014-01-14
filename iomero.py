@@ -163,15 +163,28 @@ class Omg(object):
         Download the specified image as an OME-TIFF to current directory.
         Return : path to downloaded image
         """
-        # TODO, download attachments to a folder named according to im_id
         img = self.conn.getObject("Image", oid=im_id)
         img_name = self._unique_name(img.getName(), im_id)
-        img_path = os.path.join(os.getcwd(), img_name + ".ome.tiff")
-        img_file = open(str(img_path), "wb")
+        img_path = os.path.join(os.getcwd(), img_name)
+        img_file = open(str(img_path + ".ome.tiff"), "wb")
         fsize, blockgen = img.exportOmeTiff(bufsize=65536)
         for block in blockgen:
             img_file.write(block)
         img_file.close()
+        fa_type = omero.model.FileAnnotationI
+        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
+        if len(attachments) > 0:
+            att_dir = img_path + "_attachments"
+            os.mkdir(att_dir)
+
+            def download_attachment(att, att_dir):
+                att_file = open(os.path.join(att_dir, att.getFileName()), "wb")
+                for att_chunk in att.getFileInChunks():
+                    att_file.write(att_chunk)
+                att_file.close()
+
+            for att in attachments:
+                download_attachment(att, att_dir)
         return img_path
 
     def im(self, im_id):
@@ -230,9 +243,19 @@ class Omg(object):
         #   ROIs:,
         #   display settings:
         return meta
-    
 
     # TODO, implement these methods!
+    
+    #def dget(self, dataset=None):
+    #    """
+    #    Download an entire OMERO Dataset.
+    #    """
+
+    #def pget(self, project=None):
+    #    """
+    #    Download an entire OMERO Project.
+    #    """
+
     #   see: lib/python/omeroweb/webclient/controller/container.py
 
     #def imsave(self, im, dataset=None):
@@ -243,16 +266,6 @@ class Omg(object):
     #def _store_meta(self, omg, im_id):
     #    """
     #    Set OMERO Image metadata using self metadata.
-    #    """
-
-    #def dget(self, dataset=None):
-    #    """
-    #    Download an entire OMERO Dataset.
-    #    """
-
-    #def pget(self, project=None):
-    #    """
-    #    Download an entire OMERO Project.
     #    """
 
     #def mkd(self, dataset_name):
