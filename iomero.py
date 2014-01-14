@@ -288,7 +288,7 @@ class Omg(object):
         res.unload()
         return res.id.val
 
-    def mkp(self, project_name, description=None):
+    def mkpj(self, project_name, description=None):
         """
         Make new OMERO project in current group, returning the new project Id.
         """
@@ -299,7 +299,7 @@ class Omg(object):
             pj.description = omero.rtypes.rstring(str(description))
         return self._save_and_return_id(pj)
 
-    def mkd(self, dataset_name, project_id=None, description=None):
+    def mkds(self, dataset_name, project_id=None, description=None):
         """
         Make new OMERO dataset, returning the new dataset Id.
         """
@@ -318,11 +318,6 @@ class Omg(object):
 
     # TODO, implement these methods!
 
-    #def dput(self, path=None):
-    #    """
-    #    Create new OMERO Dataset from contents of a folder (default cwd).
-    #    """
-
     #def imput(self, im, dataset=None):
     #    """
     #    Create a new OMERO Image using an Im object.
@@ -330,7 +325,7 @@ class Omg(object):
 
     #def _store_meta(self, omg, im_id):
     #    """
-    #    Set OMERO Image metadata using self metadata.
+    #    Set OMERO Image metadata using Im metadata.
     #    """
 
 
