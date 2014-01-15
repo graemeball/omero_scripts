@@ -31,6 +31,7 @@ from omero.gateway import BlitzGateway
 import omero.cli
 import omero.model
 import omero.rtypes
+import omero.util.script_utils
 import impy
 
 
@@ -303,7 +304,6 @@ class Omg(object):
         """
         Make new OMERO dataset, returning the new dataset Id.
         """
-        # see: omero/lib/python/omeroweb/webclient/controller/container.py
         ds = omero.model.DatasetI()
         ds.name = omero.rtypes.rstring(str(dataset_name))
         if description is not None and description != "":
@@ -318,15 +318,31 @@ class Omg(object):
 
     # TODO, implement these methods!
 
-    #def imput(self, im, dataset=None):
-    #    """
-    #    Create a new OMERO Image using an Im object.
-    #    """
+    def imput(self, im, dataset=None):
+        """
+        Create a new OMERO Image using an Im object, returning new image id.
+        """
+        # see: omero/lib/python/omero/util/script_utils.py
+        # see: https://gist.github.com/will-moore/4141708
+        nc, nt, nz, ny, nx = im.shape
+        ch_nums = range(nc)
+        ps = self.conn.getPixelsService()
+        qs = self.conn.getQueryService()
+        ptype_query = "from PixelsType as p where p.value='{0}'".format(str(im.dtype))
+        pixelsType = qs.findByQuery(ptype_query, None)
+        im_id = ps.createImage(nx, ny, nz, nt, ch_nums, pixelsType,
+                im.name, im.description)
+        # TODO: upload pixel data
+        # TODO: create image-dataset link
+        self._update_meta(im, im_id)
+        return im_id
 
-    #def _store_meta(self, omg, im_id):
-    #    """
-    #    Set OMERO Image metadata using Im metadata.
-    #    """
+    def _update_meta(self, im, im_id):
+        """
+        Set OMERO Image metadata using Im metadata.
+        """
+        # TODO: store metadata
+
 
 
 # custom ArgumentParser
