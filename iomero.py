@@ -316,7 +316,7 @@ class Omg(object):
             ds.addProjectDatasetLink(l_ds)
         return self._save_and_return_id(ds)
 
-    def imput(self, im, dataset=None):
+    def imput(self, im, dataset_id=None):
         """
         Create a new OMERO Image using an Im object, returning new image id.
         """
@@ -327,22 +327,28 @@ class Omg(object):
         qs = self.conn.getQueryService()
         ps = self.conn.getPixelsService()
         cs = self.conn.getContainerService()
+        us = self.conn.getUpdateService()
         pus = self.conn.c.sf.createRawPixelsStore()
         ptype_query = "from PixelsType as p where p.value='{0}'".format(str(im.dtype))
         pixelsType = qs.findByQuery(ptype_query, None)
         im_id = ps.createImage(nx, ny, nz, nt, ch_nums, pixelsType,
                 im.name, im.description)
-        img = cs.getImages("Image", [im_id.getValue()], None)[0]
-        pix_id = img.getPrimaryPixels().getId().getValue()
+        img_i = cs.getImages("Image", [im_id.getValue()], None)[0]
+        img = self.conn.getObject("Image", im_id.getValue())
+        pix_id = img_i.getPrimaryPixels().getId().getValue()
         pus.setPixelsId(pix_id, True)
         for c in range(nc):
             for t in range(nt):
                 for z in range(nz):
                     plane = im.pix[c, t, z, :, :]
                     script_utils.uploadPlaneByRow(pus, plane, z, c, t)
-        # TODO: create image-dataset link
+        l_im = omero.model.DatasetImageLinkI()
+        ds = self.conn.getObject("Dataset", dataset_id)
+        l_im.setParent(ds._obj)
+        l_im.setChild(img._obj)
         self._update_meta(im, im_id)
-        return im_id
+        us.saveObject(l_im, self.conn.SERVICE_OPTS)
+        return im_id.getValue()
 
     def _update_meta(self, im, im_id):
         """
