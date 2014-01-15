@@ -229,8 +229,8 @@ class Omg(object):
 
         def _extract_ch_info(ch):
             ch_info = {'label': ch.getLabel()}
-            ch_info['em_wave'] = ch.getEmissionWave()
             ch_info['ex_wave'] = ch.getExcitationWave()
+            ch_info['em_wave'] = ch.getEmissionWave()
             ch_info['color'] = ch.getColor().getRGB()
             return ch_info
 
@@ -321,6 +321,7 @@ class Omg(object):
         Create a new OMERO Image using an Im object, returning new image id.
         """
         # see: omero/lib/python/omero/util/script_utils.py
+        # see: omero/lib/python/omeroweb/webclient/webclient_gateway.py
         # see: https://gist.github.com/will-moore/4141708
         nc, nt, nz, ny, nx = im.shape
         ch_nums = range(nc)
@@ -355,6 +356,10 @@ class Omg(object):
         Set OMERO Image metadata using Im metadata.
         """
         # TODO: store im metadata in OMERO image with im_id
+        # channels [{'label': label, 'ex_wave': ex_wave, 'em_wave': em_wave, 'color': RGB},...]
+        # pixel_size [{'x': psx, 'y': psy, 'z': psz, 'units': ?},...]
+        # tags {'tag1 (id1)': 'desc1',...}
+        # TODO: objective, ROIs, display settings
 
 
 # custom ArgumentParser
