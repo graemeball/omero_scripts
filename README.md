@@ -7,3 +7,4 @@ Author: Graeme Ball
 License: GPL
 
 * **iomero.py**: OMERO helper I/O module wrapping CLI and Blitz gateway
+* **impy.py**: simple ndarray+metadata image object

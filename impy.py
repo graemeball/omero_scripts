@@ -3,11 +3,15 @@
 impy.py
 =========
 
-Image processing helper classes and functions designed to interface
-with IPython notebook, OMERO, CellProfiler, CellCognition, Ilastik.
-The core data type is the Im class.
+Im image class to simplify scripting with OMERO and IPython notebook.
 
 """
+# TODO: 
+#   - add helper methods 
+#   - add interfaces to other python image processing tools
+#   - more metadata
+#   - large files / memmap / hdf5
+#   - parallel / locking
 
 __author__ = "Graeme Ball (graemeball@googlemail.com)"
 __copyright__ = "Copyright (c) 2013 Graeme Ball"
@@ -20,7 +24,7 @@ import pprint
 
 class Im(object):
     """
-    Image object based on a numpy ndarray; OME compatible.
+    Image object based on numpy ndarray, with easily accessible core metadata.
 
     Attributes
     ----------
