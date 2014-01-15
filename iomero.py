@@ -27,11 +27,11 @@ import argparse
 import numpy as np
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
-from omero.gateway import BlitzGateway
 import omero.cli
 import omero.model
 import omero.rtypes
-import omero.util.script_utils
+from omero.gateway import BlitzGateway
+from omero.util import script_utils
 import impy
 
 
@@ -316,8 +316,6 @@ class Omg(object):
             ds.addProjectDatasetLink(l_ds)
         return self._save_and_return_id(ds)
 
-    # TODO, implement these methods!
-
     def imput(self, im, dataset=None):
         """
         Create a new OMERO Image using an Im object, returning new image id.
@@ -326,13 +324,22 @@ class Omg(object):
         # see: https://gist.github.com/will-moore/4141708
         nc, nt, nz, ny, nx = im.shape
         ch_nums = range(nc)
-        ps = self.conn.getPixelsService()
         qs = self.conn.getQueryService()
+        ps = self.conn.getPixelsService()
+        cs = self.conn.getContainerService()
+        pus = self.conn.c.sf.createRawPixelsStore()
         ptype_query = "from PixelsType as p where p.value='{0}'".format(str(im.dtype))
         pixelsType = qs.findByQuery(ptype_query, None)
         im_id = ps.createImage(nx, ny, nz, nt, ch_nums, pixelsType,
                 im.name, im.description)
-        # TODO: upload pixel data
+        img = cs.getImages("Image", [im_id.getValue()], None)[0]
+        pix_id = img.getPrimaryPixels().getId().getValue()
+        pus.setPixelsId(pix_id, True)
+        for c in range(nc):
+            for t in range(nt):
+                for z in range(nz):
+                    plane = im.pix[c, t, z, :, :]
+                    script_utils.uploadPlaneByRow(pus, plane, z, c, t)
         # TODO: create image-dataset link
         self._update_meta(im, im_id)
         return im_id
@@ -341,8 +348,7 @@ class Omg(object):
         """
         Set OMERO Image metadata using Im metadata.
         """
-        # TODO: store metadata
-
+        # TODO: store im metadata in OMERO image with im_id
 
 
 # custom ArgumentParser
