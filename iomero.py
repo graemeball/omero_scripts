@@ -7,6 +7,7 @@ A module for interfacing with OMERO (I/O), including both interactive
 work and command line usage. Configure by editing SETUP CONSTANTS.
 
 For interactive use from a python shell, create an Omg instance.
+The Im class provides easy access to image pixel data and core metadata.
 
 """
 
@@ -24,6 +25,7 @@ PORT = 4064           # default
 import os
 import sys
 import argparse
+import pprint
 import numpy as np
 sys.path.append(OMERO_PYTHON)
 sys.path.append(ICE_PATH)
@@ -32,7 +34,6 @@ import omero.model
 import omero.rtypes
 from omero.gateway import BlitzGateway
 from omero.util import script_utils
-import impy
 
 
 class Omg(object):
@@ -77,7 +78,7 @@ class Omg(object):
 
     def put(self, filename, name=None, dataset=None):
         """
-        Import filename usign OMERO CLI, optionally with a specified name
+        Import filename using OMERO CLI, optionally with a specified name
         to a specified dataset (dataset_id).
         Return : OMERO image Id
         """
@@ -164,9 +165,10 @@ class Omg(object):
         """
         self.conn.setGroupForSession(group_id)
 
-    def get(self, im_id):
+    def get(self, im_id, get_att=True):
         """
-        Download the specified image as an OME-TIFF to current directory.
+        Download the specified image as an OME-TIFF to current directory,
+        with attachments also downloaded to folder: img_path + '_attachments'
         Return : path to downloaded image
         """
         img = self.conn.getObject("Image", oid=im_id)
@@ -179,7 +181,7 @@ class Omg(object):
         img_file.close()
         fa_type = omero.model.FileAnnotationI
         attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
-        if len(attachments) > 0:
+        if get_attachments and len(attachments) > 0:
             att_dir = img_path + "_attachments"
             os.mkdir(att_dir)
 
@@ -195,7 +197,7 @@ class Omg(object):
 
     def im(self, im_id):
         """
-        Return an impy.Im object for the image id specified.
+        Return an Im object for the image id specified.
         """
         img = self.conn.getObject("Image", im_id)
         # build pixel np.ndarray
@@ -204,9 +206,9 @@ class Omg(object):
         planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
         pix_gen = img.getPrimaryPixels().getPlanes(planes)
         pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
-        # initialize impy.Im using pix and extracted metadata
+        # initialize Im using pix and extracted metadata
         meta = self._extract_meta(img, im_id)
-        return impy.Im(pix=pix, meta=meta)
+        return Im(pix=pix, meta=meta)
 
     def _unique_name(self, img_name, im_id):
         """
@@ -223,9 +225,6 @@ class Omg(object):
         meta = {}
         meta['name'] = self._unique_name(img.getName(), im_id)
         meta['description'] = img.getDescription()
-        meta['omero_id'] = self.conn.getUser().getName() + " (" + \
-                           str(self.conn.getUser().getId()) + ") @" + \
-                           self.conn.host
 
         def _extract_ch_info(ch):
             ch_info = {'label': ch.getLabel()}
@@ -244,9 +243,14 @@ class Omg(object):
         fa_type = omero.model.FileAnnotationI
         attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
         meta['attachments'] = [att.getFileName() + " (" + str(att.getId()) + ")" for att in attachments]
+        user_id = self.conn.getUser().getName() + " (" + \
+                  str(self.conn.getUser().getId()) + ") @" + self.conn.host
+        meta_ext = {}
+        meta_ext['user_id'] = user_id
+        meta['meta_ext'] = meta_ext
         # TODO:-
         #   objective: Image.loadOriginalMetadata()[1][find 'Lens ID Number'][1],
-        #   ROIs:,
+        #   ROIs:
         #   display settings:
         return meta
 
@@ -323,6 +327,8 @@ class Omg(object):
         # see: omero/lib/python/omero/util/script_utils.py
         # see: omero/lib/python/omeroweb/webclient/webclient_gateway.py
         # see: https://gist.github.com/will-moore/4141708
+        if not isinstance(im, Im):
+            raise TypeError("first imput argument must be of type Im")
         nc, nt, nz, ny, nx = im.shape
         ch_nums = range(nc)
         qs = self.conn.getQueryService()
@@ -359,7 +365,64 @@ class Omg(object):
         # channels [{'label': label, 'ex_wave': ex_wave, 'em_wave': em_wave, 'color': RGB},...]
         # pixel_size [{'x': psx, 'y': psy, 'z': psz, 'units': ?},...]
         # tags {'tag1 (id1)': 'desc1',...}
-        # TODO: objective, ROIs, display settings
+        # user_id
+        # TODO: objective, attachments, ROIs, display settings
+
+
+class Im(object):
+    """
+    Image object based on numpy ndarray, with easily accessible core metadata.
+
+    Attributes
+    ----------
+        name: image name (string)
+        pix : numpy ndarray of pixel data
+        dim_order: "CTZYX" (fixed, all images are 5D)
+        dtype: numpy dtype for pixels
+        shape: pixel array shape tuple, (nc, nt, nz, ny, nx)
+        pixel_size: dict of pixel sizes and units
+        ch_info: list of channel info dicts
+        description: image description (string)
+        tags: dict of tag {'value': description} pairs
+        attachments: list of attachment files
+        meta_ext: dict of extended metadata {'label': value} pairs
+
+    """
+
+    def __init__(self, pix=None, meta=None):
+        """
+        Construct Im object using numpy ndarray (pix) and metadata dictionary.
+        Default is to construct array of zeros of given size, or 1x1x1x256x256.
+
+        """
+        channels = [{'label': None, 'em_wave': None, 'ex_wave': None, 'color': None}]
+        pixel_size = {'x': 1, 'y': 1, 'z': 1, 'units': None}
+        default_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
+                        'dtype': np.uint8, 'shape': (1, 1, 1, 256, 256),
+                        'pixel_size': pixel_size, 'channels': channels,
+                        'description': "", 'tags': {}, 'attachments': [],
+                        'meta_ext': {}}
+        for key in default_meta:
+            setattr(self, key, default_meta[key])
+        if meta is not None:
+            for key in meta:
+                setattr(self, key, meta[key])
+        if pix is None:
+            # default, construct empty 8-bit image according to dimensions
+            self.pix = np.zeros((self.nc, self.nt, self.nz, self.ny, self.nx),
+                                dtype=np.uint8)
+        else:
+            if isinstance(pix, np.ndarray):
+                self.pix = pix
+            else:
+                raise TypeError("pix must be " + str(np.ndarray))
+            self.shape = pix.shape
+            self.dtype = pix.dtype
+
+    def __repr__(self):
+        im_repr = 'Im object "{0}"\n'.format(self.name)
+        im_repr += pprint.pformat(vars(self))
+        return im_repr
 
 
 # custom ArgumentParser
