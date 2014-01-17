@@ -76,6 +76,118 @@ class Omg(object):
         else:
             print("Failed to open connection :-(")
 
+    def ls(self):
+        """
+        Print groups, then projects/datasets/images for current group
+        """
+        print("Groups for {0}:-".format(self.conn.getUser().getName()))
+        for gid, gname in self._ls_groups():
+            print("  {0} ({1})".format(gname, str(gid)))
+        curr_grp = self.conn.getGroupFromContext()
+        gid, gname = curr_grp.getId(), curr_grp.getName()
+        print("\nData for current group, {0} ({1}):-".format(gname, gid))
+        for pid, pname in self._ls_projects():
+            print("  Project: {0} ({1})".format(pname, str(pid)))
+            for did, dname in self._ls_datasets(pid):
+                print("    Dataset: {0} ({1})".format(dname, str(did)))
+                for iid, iname in self._ls_images(did):
+                    print("      Image: {0} ({1})".format(iname, str(iid)))
+        # TODO, list orphaned Datasets and Images
+
+    def _ls_groups(self):
+        """list groups (id, name) this session is a member of"""
+        groups = self.conn.getGroupsMemberOf()
+        return [(group.getId(), group.getName()) for group in groups]
+
+    def _ls_projects(self):
+        """list projects (id, name) in the current session group"""
+        projs = self.conn.listProjects(self.conn.getUserId())
+        return [(proj.getId(), proj.getName()) for proj in projs]
+
+    def _ls_datasets(self, proj_id):
+        """list datasets (id, name) within the project id given"""
+        dsets = self.conn.getObject("Project", proj_id).listChildren()
+        return [(dset.getId(), dset.getName()) for dset in dsets]
+
+    def _ls_images(self, dset_id):
+        """list images (id, name) within the dataset id given"""
+        imgs = self.conn.getObject("Dataset", dset_id).listChildren()
+        return [(img.getId(), img.getName()) for img in imgs]
+
+    def chgrp(self, group_id):
+        """
+        Change group for this session to the group_id given.
+        """
+        self.conn.setGroupForSession(group_id)
+
+    def get(self, im_id, get_att=True):
+        """
+        Download the specified image as an OME-TIFF to current directory,
+        with attachments also downloaded to folder: img_path + '_attachments'
+        Return : path to downloaded image
+        """
+        img = self.conn.getObject("Image", oid=im_id)
+        img_name = self._unique_name(img.getName(), im_id)
+        img_path = os.path.join(os.getcwd(), img_name)
+        img_file = open(str(img_path + ".ome.tiff"), "wb")
+        fsize, blockgen = img.exportOmeTiff(bufsize=65536)
+        for block in blockgen:
+            img_file.write(block)
+        img_file.close()
+        fa_type = omero.model.FileAnnotationI
+        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
+        if get_att and len(attachments) > 0:
+            att_dir = img_path + "_attachments"
+            os.mkdir(att_dir)
+
+            def download_attachment(att, att_dir):
+                att_file = open(os.path.join(att_dir, att.getFileName()), "wb")
+                for att_chunk in att.getFileInChunks():
+                    att_file.write(att_chunk)
+                att_file.close()
+
+            for att in attachments:
+                download_attachment(att, att_dir)
+        return img_path
+
+    def _unique_name(self, img_name, im_id):
+        """
+        Make a unique name by combining a file basename and OMERO Image id.
+        """
+        path_and_base, ext = os.path.splitext(img_name)
+        base = os.path.basename(path_and_base)  # name in OMERO can has path
+        return "{0}_{1}".format(base, str(im_id))
+
+    def dget(self, dataset_id):
+        """
+        Download an entire OMERO Dataset to the current directory.
+        """
+        downloads = []
+        wdir = os.getcwd()
+        dset_name = self.conn.getObject("Dataset", dataset_id).getName()
+        dset_path = os.path.join(wdir, dset_name + "_D" + str(dataset_id))
+        os.mkdir(dset_path)
+        os.chdir(dset_path)
+        for img_id, img_name in self._ls_images(dataset_id):
+            downloads.append(self.get(img_id))
+        os.chdir(wdir)
+        return downloads
+
+    def pget(self, project_id):
+        """
+        Download an entire OMERO Project to the current directory.
+        """
+        downloads = []
+        wdir = os.getcwd()
+        proj_name = self.conn.getObject("Project", project_id).getName()
+        proj_path = os.path.join(wdir, proj_name + "_P" + str(project_id))
+        os.mkdir(proj_path)
+        os.chdir(proj_path)
+        for dset_id, dset_name in self._ls_datasets(project_id):
+            downloads.extend(self.dget(dset_id))
+        os.chdir(wdir)
+        return downloads
+
     def put(self, filename, name=None, dataset=None):
         """
         Import filename using OMERO CLI, optionally with a specified name
@@ -121,79 +233,43 @@ class Omg(object):
             img.linkAnnotation(fann)
         img.save()
 
-    def _ls_groups(self):
-        """list groups (id, name) this session is a member of"""
-        groups = self.conn.getGroupsMemberOf()
-        return [(group.getId(), group.getName()) for group in groups]
+    # TODO: ls_tags() and tag() methods?
 
-    def _ls_projects(self):
-        """list projects (id, name) in the current session group"""
-        projs = self.conn.listProjects(self.conn.getUserId())
-        return [(proj.getId(), proj.getName()) for proj in projs]
-
-    def _ls_datasets(self, proj_id):
-        """list datasets (id, name) within the project id given"""
-        dsets = self.conn.getObject("Project", proj_id).listChildren()
-        return [(dset.getId(), dset.getName()) for dset in dsets]
-
-    def _ls_images(self, dset_id):
-        """list images (id, name) within the dataset id given"""
-        imgs = self.conn.getObject("Dataset", dset_id).listChildren()
-        return [(img.getId(), img.getName()) for img in imgs]
-
-    def ls(self):
+    def mkp(self, project_name, description=None):
         """
-        Print groups, then projects/datasets/images for current group
+        Make new OMERO project in current group, returning the new project Id.
         """
-        print("Groups for {0}:-".format(self.conn.getUser().getName()))
-        for gid, gname in self._ls_groups():
-            print("  {0} ({1})".format(gname, str(gid)))
-        curr_grp = self.conn.getGroupFromContext()
-        gid, gname = curr_grp.getId(), curr_grp.getName()
-        print("\nData for current group, {0} ({1}):-".format(gname, gid))
-        for pid, pname in self._ls_projects():
-            print("  Project: {0} ({1})".format(pname, str(pid)))
-            for did, dname in self._ls_datasets(pid):
-                print("    Dataset: {0} ({1})".format(dname, str(did)))
-                for iid, iname in self._ls_images(did):
-                    print("      Image: {0} ({1})".format(iname, str(iid)))
-        # TODO, list orphaned Datasets and Images
+        # see: omero/lib/python/omeroweb/webclient/controller/container.py
+        pj = omero.model.ProjectI()
+        pj.name = omero.rtypes.rstring(str(project_name))
+        if description is not None and description != "":
+            pj.description = omero.rtypes.rstring(str(description))
+        return self._save_and_return_id(pj)
 
-    def chgrp(self, group_id):
+    def mkd(self, dataset_name, project_id=None, description=None):
         """
-        Change group for this session to the group_id given.
+        Make new OMERO dataset, returning the new dataset Id.
         """
-        self.conn.setGroupForSession(group_id)
+        ds = omero.model.DatasetI()
+        ds.name = omero.rtypes.rstring(str(dataset_name))
+        if description is not None and description != "":
+            ds.description = omero.rtypes.rstring(str(description))
+        if project_id is not None:
+            l_ds = omero.model.ProjectDatasetLinkI()
+            pj = self.conn.getObject("Project", project_id)
+            l_ds.setParent(pj._obj)
+            l_ds.setChild(ds)
+            ds.addProjectDatasetLink(l_ds)
+        return self._save_and_return_id(ds)
 
-    def get(self, im_id, get_att=True):
-        """
-        Download the specified image as an OME-TIFF to current directory,
-        with attachments also downloaded to folder: img_path + '_attachments'
-        Return : path to downloaded image
-        """
-        img = self.conn.getObject("Image", oid=im_id)
-        img_name = self._unique_name(img.getName(), im_id)
-        img_path = os.path.join(os.getcwd(), img_name)
-        img_file = open(str(img_path + ".ome.tiff"), "wb")
-        fsize, blockgen = img.exportOmeTiff(bufsize=65536)
-        for block in blockgen:
-            img_file.write(block)
-        img_file.close()
-        fa_type = omero.model.FileAnnotationI
-        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
-        if get_attachments and len(attachments) > 0:
-            att_dir = img_path + "_attachments"
-            os.mkdir(att_dir)
-
-            def download_attachment(att, att_dir):
-                att_file = open(os.path.join(att_dir, att.getFileName()), "wb")
-                for att_chunk in att.getFileInChunks():
-                    att_file.write(att_chunk)
-                att_file.close()
-
-            for att in attachments:
-                download_attachment(att, att_dir)
-        return img_path
+    def _save_and_return_id(self, obj):
+        """Save new omero object and return id assgined to it"""
+        # see: OmeroWebGateway.saveAndReturnId
+        # in: lib/python/omeroweb/webclient/webclient_gateway.py
+        us = self.conn.getUpdateService()
+        res = us.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
+        res.unload()
+        return res.id.val
 
     def im(self, im_id):
         """
@@ -209,14 +285,6 @@ class Omg(object):
         # initialize Im using pix and extracted metadata
         meta = self._extract_meta(img, im_id)
         return Im(pix=pix, meta=meta)
-
-    def _unique_name(self, img_name, im_id):
-        """
-        Make a unique name by combining a file basename and OMERO Image id.
-        """
-        path_and_base, ext = os.path.splitext(img_name)
-        base = os.path.basename(path_and_base)  # name in OMERO can has path
-        return "{0}_{1}".format(base, str(im_id))
 
     def _extract_meta(self, img, im_id):
         """
@@ -253,72 +321,6 @@ class Omg(object):
         #   ROIs:
         #   display settings:
         return meta
-
-    def dget(self, dataset_id):
-        """
-        Download an entire OMERO Dataset to the current directory.
-        """
-        downloads = []
-        wdir = os.getcwd()
-        dset_name = self.conn.getObject("Dataset", dataset_id).getName()
-        dset_path = os.path.join(wdir, dset_name + "_D" + str(dataset_id))
-        os.mkdir(dset_path)
-        os.chdir(dset_path)
-        for img_id, img_name in self._ls_images(dataset_id):
-            downloads.append(self.get(img_id))
-        os.chdir(wdir)
-        return downloads
-
-    def pget(self, project_id):
-        """
-        Download an entire OMERO Project to the current directory.
-        """
-        downloads = []
-        wdir = os.getcwd()
-        proj_name = self.conn.getObject("Project", project_id).getName()
-        proj_path = os.path.join(wdir, proj_name + "_P" + str(project_id))
-        os.mkdir(proj_path)
-        os.chdir(proj_path)
-        for dset_id, dset_name in self._ls_datasets(project_id):
-            downloads.extend(self.dget(dset_id))
-        os.chdir(wdir)
-        return downloads
-
-    def _save_and_return_id(self, obj):
-        """Save new omero object and return id assgined to it"""
-        # see: OmeroWebGateway.saveAndReturnId
-        # in: lib/python/omeroweb/webclient/webclient_gateway.py
-        us = self.conn.getUpdateService()
-        res = us.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
-        res.unload()
-        return res.id.val
-
-    def mkp(self, project_name, description=None):
-        """
-        Make new OMERO project in current group, returning the new project Id.
-        """
-        # see: omero/lib/python/omeroweb/webclient/controller/container.py
-        pj = omero.model.ProjectI()
-        pj.name = omero.rtypes.rstring(str(project_name))
-        if description is not None and description != "":
-            pj.description = omero.rtypes.rstring(str(description))
-        return self._save_and_return_id(pj)
-
-    def mkd(self, dataset_name, project_id=None, description=None):
-        """
-        Make new OMERO dataset, returning the new dataset Id.
-        """
-        ds = omero.model.DatasetI()
-        ds.name = omero.rtypes.rstring(str(dataset_name))
-        if description is not None and description != "":
-            ds.description = omero.rtypes.rstring(str(description))
-        if project_id is not None:
-            l_ds = omero.model.ProjectDatasetLinkI()
-            pj = self.conn.getObject("Project", project_id)
-            l_ds.setParent(pj._obj)
-            l_ds.setChild(ds)
-            ds.addProjectDatasetLink(l_ds)
-        return self._save_and_return_id(ds)
 
     def imput(self, im, dataset_id=None):
         """
