@@ -58,7 +58,7 @@ class Omg(object):
             if conn.isConnected():
                 self.conn = conn
             else:
-                raise ValueError("Cannot initialize Omg with closed connection!")
+                raise ValueError("Cannot initialize with closed connection!")
         else:
             if passwd is not None:
                 self.conn = BlitzGateway(user, passwd, host=server, port=port)
@@ -135,12 +135,14 @@ class Omg(object):
             img_file.write(block)
         img_file.close()
         fa_type = omero.model.FileAnnotationI
-        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
+        attachments = [ann for ann in img.listAnnotations()
+                       if ann.OMERO_TYPE == fa_type]
         if get_att and len(attachments) > 0:
             att_dir = img_path + "_attachments"
             os.mkdir(att_dir)
 
             def download_attachment(att, att_dir):
+                """download OMERO file annotation to att_dir"""
                 att_file = open(os.path.join(att_dir, att.getFileName()), "wb")
                 for att_chunk in att.getFileInChunks():
                     att_file.write(att_chunk)
@@ -238,34 +240,34 @@ class Omg(object):
         Make new OMERO project in current group, returning the new project Id.
         """
         # see: omero/lib/python/omeroweb/webclient/controller/container.py
-        pj = omero.model.ProjectI()
-        pj.name = omero.rtypes.rstring(str(project_name))
+        proj = omero.model.ProjectI()
+        proj.name = omero.rtypes.rstring(str(project_name))
         if description is not None and description != "":
-            pj.description = omero.rtypes.rstring(str(description))
-        return self._save_and_return_id(pj)
+            proj.description = omero.rtypes.rstring(str(description))
+        return self._save_and_return_id(proj)
 
     def mkd(self, dataset_name, project_id=None, description=None):
         """
         Make new OMERO dataset, returning the new dataset Id.
         """
-        ds = omero.model.DatasetI()
-        ds.name = omero.rtypes.rstring(str(dataset_name))
+        dset = omero.model.DatasetI()
+        dset.name = omero.rtypes.rstring(str(dataset_name))
         if description is not None and description != "":
-            ds.description = omero.rtypes.rstring(str(description))
+            dset.description = omero.rtypes.rstring(str(description))
         if project_id is not None:
-            l_ds = omero.model.ProjectDatasetLinkI()
-            pj = self.conn.getObject("Project", project_id)
-            l_ds.setParent(pj._obj)
-            l_ds.setChild(ds)
-            ds.addProjectDatasetLink(l_ds)
-        return self._save_and_return_id(ds)
+            l_proj_dset = omero.model.ProjectDatasetLinkI()
+            proj = self.conn.getObject("Project", project_id)
+            l_proj_dset.setParent(proj._obj)
+            l_proj_dset.setChild(dset)
+            dset.addProjectDatasetLink(l_proj_dset)
+        return self._save_and_return_id(dset)
 
     def _save_and_return_id(self, obj):
         """Save new omero object and return id assgined to it"""
         # see: OmeroWebGateway.saveAndReturnId
         # in: lib/python/omeroweb/webclient/webclient_gateway.py
-        us = self.conn.getUpdateService()
-        res = us.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
+        u_s = self.conn.getUpdateService()
+        res = u_s.saveAndReturnObject(obj, self.conn.SERVICE_OPTS)
         res.unload()
         return res.id.val
 
@@ -277,7 +279,9 @@ class Omg(object):
         # build pixel np.ndarray
         nx, ny = img.getSizeX(), img.getSizeY()
         nz, nt, nc = img.getSizeZ(), img.getSizeT(), img.getSizeC()
-        planes = [(z, c, t) for c in range(nc) for t in range(nt) for z in range(nz)]
+        planes = [(z, c, t) for c in range(nc)
+                  for t in range(nt)
+                  for z in range(nz)]
         pix_gen = img.getPrimaryPixels().getPlanes(planes)
         pix = np.array([i for i in pix_gen]).reshape((nc, nt, nz, ny, nx))
         # initialize Im using pix and extracted metadata
@@ -291,6 +295,7 @@ class Omg(object):
         meta['description'] = img.getDescription()
 
         def _extract_ch_info(ch):
+            """extract core metadata for for channel, return as dict"""
             ch_info = {'label': ch.getLabel()}
             ch_info['ex_wave'] = ch.getExcitationWave()
             ch_info['em_wave'] = ch.getEmissionWave()
@@ -298,24 +303,27 @@ class Omg(object):
             return ch_info
 
         meta['channels'] = [_extract_ch_info(ch) for ch in img.getChannels()]
-        meta['pixel_size'] = {'x': img.getPixelSizeX(), 'y': img.getPixelSizeY(),
-                              'z': img.getPixelSizeZ(), 'units': "um"}
+        meta['pixel_size'] = {'x': img.getPixelSizeX(),
+                              'y': img.getPixelSizeY(),
+                              'z': img.getPixelSizeZ(),
+                              'units': "um"}
         tag_type = omero.model.TagAnnotationI
-        tags = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == tag_type]
-        meta['tags'] = {tag.getValue() + " (" + str(tag.getId()) + ")": \
+        tags = [ann for ann in img.listAnnotations()
+                if ann.OMERO_TYPE == tag_type]
+        meta['tags'] = {tag.getValue() + " (" + str(tag.getId()) + ")":
                         tag.getDescription() for tag in tags}
         fa_type = omero.model.FileAnnotationI
-        attachments = [ann for ann in img.listAnnotations() if ann.OMERO_TYPE == fa_type]
-        meta['attachments'] = [att.getFileName() + " (" + str(att.getId()) + ")" for att in attachments]
+        attachments = [ann for ann in img.listAnnotations()
+                       if ann.OMERO_TYPE == fa_type]
+        meta['attachments'] = [att.getFileName() + " (" + str(att.getId()) +
+                               ")" for att in attachments]
         user_id = self.conn.getUser().getName() + " (" + \
-                  str(self.conn.getUser().getId()) + ") @" + self.conn.host
+            str(self.conn.getUser().getId()) + ") @" + self.conn.host
         meta_ext = {}
         meta_ext['user_id'] = user_id
         meta['meta_ext'] = meta_ext
-        # TODO:-
-        #   objective: Image.loadOriginalMetadata()[1][find 'Lens ID Number'][1],
-        #   ROIs:
-        #   display settings:
+        # TODO: ROIs, display settings?
+        # objective: Image.loadOriginalMetadata()[1][find 'Lens ID Number'][1],
         return meta
 
     def imput(self, im, dataset_id=None):
@@ -329,40 +337,42 @@ class Omg(object):
             raise TypeError("first imput argument must be of type Im")
         nc, nt, nz, ny, nx = im.shape
         ch_nums = range(nc)
-        qs = self.conn.getQueryService()
-        ps = self.conn.getPixelsService()
-        cs = self.conn.getContainerService()
-        us = self.conn.getUpdateService()
-        pus = self.conn.c.sf.createRawPixelsStore()
-        ptype_query = "from PixelsType as p where p.value='{0}'".format(str(im.dtype))
-        pixelsType = qs.findByQuery(ptype_query, None)
-        im_id = ps.createImage(nx, ny, nz, nt, ch_nums, pixelsType,
-                im.name, im.description)
-        img_i = cs.getImages("Image", [im_id.getValue()], None)[0]
+        q_s = self.conn.getQueryService()
+        p_s = self.conn.getPixelsService()
+        c_s = self.conn.getContainerService()
+        u_s = self.conn.getUpdateService()
+        pu_s = self.conn.c.sf.createRawPixelsStore()
+        q_ptype = "from PixelsType as p where p.value='{0}'".format(
+                  str(im.dtype))
+        pixelsType = q_s.findByQuery(q_ptype, None)
+        im_id = p_s.createImage(nx, ny, nz, nt, ch_nums, pixelsType,
+                    im.name, im.description)
+        img_i = c_s.getImages("Image", [im_id.getValue()], None)[0]
         img = self.conn.getObject("Image", im_id.getValue())
         pix_id = img_i.getPrimaryPixels().getId().getValue()
-        pus.setPixelsId(pix_id, True)
+        pu_s.setPixelsId(pix_id, True)
         for c in range(nc):
             for t in range(nt):
                 for z in range(nz):
                     plane = im.pix[c, t, z, :, :]
-                    script_utils.uploadPlaneByRow(pus, plane, z, c, t)
-        l_im = omero.model.DatasetImageLinkI()
-        ds = self.conn.getObject("Dataset", dataset_id)
-        l_im.setParent(ds._obj)
-        l_im.setChild(img._obj)
+                    script_utils.uploadPlaneByRow(pu_s, plane, z, c, t)
+        l_dset_im = omero.model.DatasetImageLinkI()
+        dset = self.conn.getObject("Dataset", dataset_id)
+        l_dset_im.setParent(dset._obj)
+        l_dset_im.setChild(img._obj)
         self._update_meta(im, im_id)
-        us.saveObject(l_im, self.conn.SERVICE_OPTS)
+        u_s.saveObject(l_dset_im, self.conn.SERVICE_OPTS)
         return im_id.getValue()
 
     def _update_meta(self, im, im_id):
         """Set OMERO Image metadata using Im metadata"""
         # TODO: store im metadata in OMERO image with im_id
-        # channels [{'label': label, 'ex_wave': ex_wave, 'em_wave': em_wave, 'color': RGB},...]
+        # channels [{'label': label, 'ex_wave': ex_wave,
+        #           'em_wave': em_wave, 'color': RGB},...]
         # pixel_size [{'x': psx, 'y': psy, 'z': psz, 'units': ?},...]
         # tags {'tag1 (id1)': 'desc1',...}
         # user_id
-        # TODO: objective, attachments, ROIs, display settings
+        # objective, attachments, ROIs, display settings
 
 
 class Im(object):
@@ -391,7 +401,8 @@ class Im(object):
         Default is to construct array of zeros of given size, or 1x1x1x256x256.
 
         """
-        channels = [{'label': None, 'em_wave': None, 'ex_wave': None, 'color': None}]
+        channels = [{'label': None, 'em_wave': None, 'ex_wave': None,
+                     'color': None}]
         pixel_size = {'x': 1, 'y': 1, 'z': 1, 'units': None}
         default_meta = {'name': "Unnamed", 'dim_order': "CTZYX",
                         'dtype': np.uint8, 'shape': (1, 1, 1, 256, 256),
