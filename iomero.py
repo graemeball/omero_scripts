@@ -6,7 +6,7 @@ iomero.py
 A module for interfacing with OMERO (I/O), including both interactive
 work and command line usage. Configure by editing SETUP CONSTANTS.
 
-For interactive use from a python shell, create an Omg instance.
+Create an Omg OMERO gateway instance to interact with OMERO.
 The Im class provides easy access to image pixel data and core metadata.
 
 """
@@ -78,7 +78,7 @@ class Omg(object):
 
     def ls(self):
         """
-        Print groups, then projects/datasets/images for current group
+        Print groups, then projects/datasets/images for current group.
         """
         print("Groups for {0}:-".format(self.conn.getUser().getName()))
         for gid, gname in self._ls_groups():
@@ -151,9 +151,7 @@ class Omg(object):
         return img_path
 
     def _unique_name(self, img_name, im_id):
-        """
-        Make a unique name by combining a file basename and OMERO Image id.
-        """
+        """Make unique name combining a file basename & OMERO Image id"""
         path_and_base, ext = os.path.splitext(img_name)
         base = os.path.basename(path_and_base)  # name in OMERO can has path
         return "{0}_{1}".format(base, str(im_id))
@@ -287,9 +285,7 @@ class Omg(object):
         return Im(pix=pix, meta=meta)
 
     def _extract_meta(self, img, im_id):
-        """
-        Extract metadata attributes from OMERO Blitz gateway Image
-        """
+        """Extract metadata attributes from OMERO Blitz gateway Image"""
         meta = {}
         meta['name'] = self._unique_name(img.getName(), im_id)
         meta['description'] = img.getDescription()
@@ -360,9 +356,7 @@ class Omg(object):
         return im_id.getValue()
 
     def _update_meta(self, im, im_id):
-        """
-        Set OMERO Image metadata using Im metadata.
-        """
+        """Set OMERO Image metadata using Im metadata"""
         # TODO: store im metadata in OMERO image with im_id
         # channels [{'label': label, 'ex_wave': ex_wave, 'em_wave': em_wave, 'color': RGB},...]
         # pixel_size [{'x': psx, 'y': psy, 'z': psz, 'units': ?},...]
@@ -440,9 +434,7 @@ class _FriendlyParser(argparse.ArgumentParser):
 
 
 def _main():
-    """
-    'iomero': a command line OMERO importer with Blitz gateway extras
-    """
+    """'iomero': a command line OMERO importer with Blitz gateway extras"""
     parser = _FriendlyParser(description=_main.__doc__)
     parser.add_argument('server', help='OMERO server name / IP address')
     parser.add_argument('-u', '--user', action="store", type=str,
