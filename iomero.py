@@ -16,8 +16,8 @@ __copyright__ = "Copyright (c) 2013 Graeme Ball"
 __license__ = "GPL"  # http://www.gnu.org/licenses/gpl.txt
 
 # SETUP CONSTANTS
-OMERO_PYTHON = "/Users/graemeb/build/OMERO.server/lib/python"
-ICE_PATH = "/usr/local/Cellar/zeroc-ice34/3.4.2/python"
+OMERO_PYTHON = "/usr/local/Cellar/omero/5.0.0-rc1/lib/python"
+#ICE_PATH = "no longer needed on Mac as of Ice3.5"
 SERVER = "localhost"  # default
 PORT = 4064           # default
 
@@ -28,7 +28,7 @@ import argparse
 import pprint
 import numpy as np
 sys.path.append(OMERO_PYTHON)
-sys.path.append(ICE_PATH)
+#sys.path.append(ICE_PATH)
 import omero.cli
 import omero.model
 import omero.rtypes
