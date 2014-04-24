@@ -34,6 +34,7 @@ import omero.model
 import omero.rtypes
 from omero.gateway import BlitzGateway
 from omero.util import script_utils
+import pylab, matplotlib
 
 
 class Omg(object):
@@ -76,7 +77,7 @@ class Omg(object):
         else:
             print("Failed to open connection :-(")
 
-    def ls(self):
+    def ls(self, uid=None):
         """
         Print groups, then projects/datasets/images for current group.
         """
@@ -86,7 +87,9 @@ class Omg(object):
         curr_grp = self.conn.getGroupFromContext()
         gid, gname = curr_grp.getId(), curr_grp.getName()
         print("\nData for current group, {0} ({1}):-".format(gname, gid))
-        for pid, pname in self._ls_projects():
+        if uid is None:
+            uid = self.conn.getUserId()
+        for pid, pname in self._ls_projects(uid=uid):
             print("  Project: {0} ({1})".format(pname, str(pid)))
             for did, dname in self._ls_datasets(pid):
                 print("    Dataset: {0} ({1})".format(dname, str(did)))
@@ -99,9 +102,12 @@ class Omg(object):
         groups = self.conn.getGroupsMemberOf()
         return [(group.getId(), group.getName()) for group in groups]
 
-    def _ls_projects(self):
+    def _ls_projects(self, uid=None):
         """list projects (id, name) in the current session group"""
-        projs = self.conn.listProjects(self.conn.getUserId())
+        if uid is not None:
+            projs = self.conn.listProjects(uid)
+        else:
+            projs = self.conn.listProjects()
         return [(proj.getId(), proj.getName()) for proj in projs]
 
     def _ls_datasets(self, proj_id):
@@ -113,6 +119,67 @@ class Omg(object):
         """list images (id, name) within the dataset id given"""
         imgs = self.conn.getObject("Dataset", dset_id).listChildren()
         return [(img.getId(), img.getName()) for img in imgs]
+
+    def groups(self):
+        """
+        List all groups with group Ids.
+        """
+        groups = [group.getName() + " (" + str(group.getId()) + ")"
+                  for group in self.conn.listGroups()]
+        return sorted(groups)
+
+    def users(self):
+        """
+        List all users with user Ids.
+        """
+        def isAd(user):
+            user = self.conn.getObject("Experimenter", oid=user.getId())
+            if user.isAdmin():
+                return "A"
+            else:
+                return ""
+
+        users = [user.getName() + " (" + str(user.getId()) + isAd(user) + ")"
+                 for user in self.conn.findExperimenters()]
+        return sorted(users)
+
+    def ustat(self):
+        """
+        Report per user statistics: projects, datasets, images, bytes.
+        """
+        users = [user for user in self.conn.findExperimenters()]
+        stats = []
+        tproj, tdset, tim, tbyte = 0, 0, 0, 0
+        for user in users:
+            nproj, ndset, nim, nbyte = 0, 0, 0, 0
+            for pid, pname in self._ls_projects(user.getId()):
+                nproj += 1
+                for did, dname in self._ls_datasets(pid):
+                    ndset += 1
+                    for iid, iname in self._ls_images(did):
+                        nim += 1
+                        nbyte += self._nbytes(iid)
+            stat = "{0} ({1}): ".format(user.getName(), user.getId())
+            stat += "{0} projects, {1} datasets, {2} images, {3} bytes".format(
+                    nproj, ndset, nim, nbyte)
+            stats.append(stat)
+            tproj += nproj
+            tdset += ndset
+            tim += nim
+            tbyte += nbyte
+        stat = "~TOTAL: "
+        stat += "{0} projects, {1} datasets, {2} images, {3} GB".format(
+                tproj, tdset, tim, tbyte * 1.0 / 1E9)
+        stats.append(stat)
+        return sorted(stats)
+
+    def _nbytes(self, im_id):
+        """Estimate number of bytes in an image"""
+        iobj = self.conn.getObject("Image", oid=im_id)
+        npix = iobj.getSizeC() * iobj.getSizeT() * iobj.getSizeZ()
+        npix *= iobj.getSizeY() * iobj.getSizeX()
+        bytes_per_pix = np.dtype(iobj.getPixelsType()).itemsize
+        return npix * bytes_per_pix
 
     def chgrp(self, group_id):
         """
@@ -355,6 +422,7 @@ class Omg(object):
             for t in range(nt):
                 for z in range(nz):
                     plane = im.pix[c, t, z, :, :]
+                    # TODO, convert to createImageFromNumpySeq
                     script_utils.uploadPlaneByRow(pu_s, plane, z, c, t)
         l_dset_im = omero.model.DatasetImageLinkI()
         dset = self.conn.getObject("Dataset", dataset_id)
