@@ -143,7 +143,7 @@ class Omg(object):
                  for user in self.conn.findExperimenters()]
         return sorted(users)
 
-    def userStats(self):
+    def ustats(self):
         """
         Report per user statistics: projects, datasets, images, bytes.
         """
