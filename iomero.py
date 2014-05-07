@@ -195,8 +195,8 @@ class Omg(object):
         """
         img = self.conn.getObject("Image", oid=im_id)
         img_name = self._unique_name(img.getName(), im_id)
-        img_path = os.path.join(os.getcwd(), img_name)
-        img_file = open(str(img_path + ".ome.tiff"), "wb")
+        img_path = os.path.join(os.getcwd(), img_name) + ".ome.tiff"
+        img_file = open(img_path, "wb")
         fsize, blockgen = img.exportOmeTiff(bufsize=65536)
         for block in blockgen:
             img_file.write(block)
@@ -218,6 +218,37 @@ class Omg(object):
             for att in attachments:
                 download_attachment(att, att_dir)
         return img_path
+
+    def cp(self, im_id):
+        """
+        Create a copy of an image in the same dataset, named name_id_CPY.
+        Set description to a note of original group,proj,dset,image
+        and return id of the new image copy.
+        """
+        img = self.conn.getObject("Image", im_id)
+
+        # re-using PrimaryPixels means img_cpy is stuck in original group :-(
+        #zct = [(z, c, t) for t in range(img.getSizeT())
+        #                 for c in range(img.getSizeC())
+        #                 for z in range(img.getSizeZ())]
+        #pplanes = img.getPrimaryPixels().getPlanes(zct)
+        #name_cpy = self._unique_name(img.getName(), im_id) + "_CPY"
+        #img_cpy = self.conn.createImageFromNumpySeq(
+        #        pplanes, name_cpy, sourceImageId=im_id)
+
+        # this is seriously ridiculous...
+        im_path = self.get(im_id)
+        cpy_name = self._unique_name(img.getName(), im_id) + "_CPY"
+        img_cpy = self.put(im_path, name=cpy_name,
+                           dataset=img.getParent().getId())
+
+        # identify original source image in description
+        origin = "\nImage: {0} ({1})".format(img.getName(), img.getId())
+        origin += "\nDataset: " + str(img.getParent().getName())
+        origin += "\nProject: " + str(img.getParent().getParent().getName())
+        origin += "\nGroup: " + self.conn.getGroupFromContext().getName()
+        self.describe(img_cpy, "Copied from..." + origin)
+        return img_cpy
 
     def _unique_name(self, img_name, im_id):
         """Make unique name combining a file basename & OMERO Image id"""
