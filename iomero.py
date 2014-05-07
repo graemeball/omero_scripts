@@ -236,7 +236,7 @@ class Omg(object):
         #img_cpy = self.conn.createImageFromNumpySeq(
         #        pplanes, name_cpy, sourceImageId=im_id)
 
-        # this is seriously ridiculous...
+        # this is suboptimal...
         im_path = self.get(im_id)
         cpy_name = self._unique_name(img.getName(), im_id) + "_CPY"
         img_cpy = self.put(im_path, name=cpy_name,
