@@ -147,17 +147,35 @@ class Omg(object):
                  for user in self.conn.findExperimenters()]
         return sorted(users)
 
-    def rois(self, iid):
-        """
-        Return list of ROIs for a given image id (iid).
-        """
-        rois = []
-        result = self.conn.getRoiService().findByImage(iid, None)
-        for roi in result.rois:
-            rois.append(roi)
-        return rois
+    def roi_list(self, iid):
+        """Return a list of ROI objects for the given image id iid."""
+        return self.conn.getRoiService().findByImage(iid, None).rois
 
-    def copy_rois(self, iid_src, iid_dest):
+    def roi_disp(self, iid):
+        """
+        Display human-readable list of ROIs for a given image id (iid).
+        """
+        def _disp_shape_info(s):
+            x, y = s.getCx().getValue(), s.getCy().getValue()
+            def _get_coord(s, dim):  # macro-tastic
+                if eval("s.getThe" + dim + "()") is not None:
+                    return eval("s.getThe" + dim + "().getValue()")
+                else:
+                    return 0  # if coord not defined
+            z, t, c = [_get_coord(s, dim) for dim in ["Z", "T", "C"]]
+            print " "*6 + "X,Y,Z,T,C=%.1f,%.1f,%d,%d,%d" % (x, y, z, t, c)
+        rois = self.roi_list(iid)
+        print "Image Id %d has %d ROIs:" % (iid, len(rois))
+        for roi in rois:
+            roi_id, shapes = roi.getId().getValue(), roi.copyShapes()
+            print "  ROI Id: %d (%d shapes)" % (roi_id, len(shapes))
+            for shape in shapes:
+                shape_id = shape.getId().getValue()
+                shape_type = type(shape)
+                print "    Shape %d %s" % (shape_id, str(shape_type))
+                _disp_shape_info(shape)
+
+    def roi_copy(self, iid_src, iid_dest):
         """
         Copy all ROIs from image iid_src to iid_dest.
         """
@@ -178,7 +196,7 @@ class Omg(object):
                 eval("new_shape.set" + meth[3:] + "(stuff)")
             return new_shape
 
-        for roi in self.rois(iid_src):
+        for roi in self.roi_list(iid_src):
             roi_new = omero.model.RoiI()
             roi_new.setImage(img_dest._obj)
             for shape in roi.copyShapes():
