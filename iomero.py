@@ -27,6 +27,7 @@ import sys
 import argparse
 import pprint
 import numpy as np
+import getpass
 sys.path.append(OMERO_PYTHON)
 #sys.path.append(ICE_PATH)
 import omero.cli
@@ -48,11 +49,14 @@ class Omg(object):
 
     """
 
-    def __init__(self, conn=None, user=None, passwd=None,
-                 server=SERVER, port=PORT, skey=None):
+    def __init__(self, conn=None, user=None, server=SERVER, port=PORT, skey=None):
         """
         Requires active Blitz connection OR username plus password or sesskey
         """
+        passwd = None
+        if skey is None:
+            passwd = getpass.getpass()
+        # TODO: clean this up!!
         if conn is None and (user is None or (passwd is None and skey is None)):
             raise ValueError("Bad parameters," + self.__init__.__doc__)
         if conn is not None:
@@ -142,6 +146,44 @@ class Omg(object):
         users = [user.getName() + " (" + str(user.getId()) + isAd(user) + ")"
                  for user in self.conn.findExperimenters()]
         return sorted(users)
+
+    def rois(self, iid):
+        """
+        Return list of ROIs for a given image id (iid).
+        """
+        rois = []
+        result = self.conn.getRoiService().findByImage(iid, None)
+        for roi in result.rois:
+            rois.append(roi)
+        return rois
+
+    def copy_rois(self, iid_src, iid_dest):
+        """
+        Copy all ROIs from image iid_src to iid_dest.
+        """
+        img_src = self.conn.getObject("Image", iid_src)
+        img_dest = self.conn.getObject("Image", iid_dest)
+        # TODO: warn if dimensions do not match
+        us = self.conn.getUpdateService()
+
+        def _clone_shape(shape):
+            # avert your eyes...
+            shape_type = type(shape)
+            new_shape = shape_type()
+            getters = [m for m in dir(shape) if m[0:3] == "get"]
+            getters.remove("getId")
+            getters.remove("getDetails")
+            for meth in getters:
+                stuff = eval("shape." + meth + "()")
+                eval("new_shape.set" + meth[3:] + "(stuff)")
+            return new_shape
+
+        for roi in self.rois(iid_src):
+            roi_new = omero.model.RoiI()
+            roi_new.setImage(img_dest._obj)
+            for shape in roi.copyShapes():
+                roi_new.addShape(_clone_shape(shape))
+            r = us.saveAndReturnObject(roi_new)
 
     def ustats(self):
         """
