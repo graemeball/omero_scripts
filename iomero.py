@@ -151,6 +151,13 @@ class Omg(object):
         """Return a list of ROI objects for the given image id iid."""
         return self.conn.getRoiService().findByImage(iid, None).rois
 
+    def _roi_shape_list(self, rois):
+        """Return a list of shapes present in a list of ROIs."""
+        all_shapes = []
+        for roi in rois:
+            all_shapes.extend(roi.copyShapes())
+        return all_shapes
+
     def roi_disp(self, iid):
         """
         Display human-readable list of ROIs for a given image id (iid).
@@ -182,7 +189,7 @@ class Omg(object):
         img_src = self.conn.getObject("Image", iid_src)
         img_dest = self.conn.getObject("Image", iid_dest)
         # TODO: warn if dimensions do not match
-        us = self.conn.getUpdateService()
+        us = self.conn.getUpdateService()  # TODO, all services as attrs?
 
         def _clone_shape(shape):
             # avert your eyes...
@@ -202,6 +209,36 @@ class Omg(object):
             for shape in roi.copyShapes():
                 roi_new.addShape(_clone_shape(shape))
             r = us.saveAndReturnObject(roi_new)
+
+    def roi_shape_move(self, iid, shape_id,
+            x=None, y=None, z=None, t=None, c=None,
+            dx=None, dy=None, dz=None, dt=None, dc=None):
+        """
+        Move a shape specified by id:
+        x, y, ... are new values to overwrite existing coords,
+        dx, dy, ... are adjustments to existing coords.
+        """
+        kwargs = {'x': x, 'y': y, 'z': z, 't': t, 'c': c,
+                  'dx': dx, 'dy': dy, 'dz': dz, 'dt': dt, 'dc': dc}
+        setter = {'x': "setCx", 'y': "setCy", 'z': "setTheZ",
+                't': "setTheT", 'c': "setTheC"}
+        shape = filter(lambda x: x.getId().getValue() == shape_id,
+                       self._roi_shape_list(self.roi_list(iid)))[0]
+        def _wrap(num):
+            if type(num) == float:
+                return omero.rtypes.rdouble(num)  # cx and cy are RDouble
+            else:
+                return omero.rtypes.rint(num)  # z is RInt (TODO: test t, c)
+        for k, v in kwargs.iteritems():
+            if v is not None:
+                if k[0] != 'd':
+                    getattr(shape, setter[k])(_wrap(v))
+                else:
+                    k = k[1:]  # snip off the 'd'
+                    # add the coord change to the existing coord
+                    v += getattr(shape, "get" + setter[k][3:])().getValue()
+                    getattr(shape, setter[k])(_wrap(v))
+        self.conn.getUpdateService().saveObject(shape)
 
     def ustats(self):
         """
