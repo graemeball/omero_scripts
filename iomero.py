@@ -180,6 +180,7 @@ class Omg(object):
                 shape_id = shape.getId().getValue()
                 shape_type = type(shape)
                 print "    Shape %d %s" % (shape_id, str(shape_type))
+                print "      comment: %s" % shape.getTextValue().getValue()
                 _disp_shape_info(shape)
 
     def roi_copy(self, iid_src, iid_dest):
